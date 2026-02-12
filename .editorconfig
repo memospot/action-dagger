@@ -1,0 +1,18 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+trim_trailing_whitespace = true
+insert_final_newline = true
+indent_style = space
+# (Please don't specify an indent_size here; that has too many unintended consequences.)
+
+[*.{js,ts}]
+indent_size = 4
+
+[*.md]
+indent_size = 2
+
+[*.{json,jsonc,toml,yml}]
+indent_size = 2

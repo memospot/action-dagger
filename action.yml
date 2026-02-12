@@ -1,0 +1,107 @@
+name: 'Dagger Build'
+description: 'Run dagger commands in GitHub Actions with intelligent caching'
+author: 'Dagger'
+branding:
+  icon: 'layers'
+  color: 'blue'
+
+inputs:
+  version:
+    description: 'Dagger Version. Use semver vX.Y.Z or latest'
+    required: false
+    default: 'latest'
+
+  cache-builds:
+    description: 'Enable Dagger build cache persistence'
+    required: false
+    default: 'true'
+
+  cache-binary:
+    description: 'Cache Dagger binary to avoid re-downloading'
+    required: false
+    default: 'true'
+
+  # Legacy inputs maintained for backward compatibility
+  commit:
+    description: 'Dagger Dev Commit (deprecated)'
+    required: false
+    default: ''
+    deprecationMessage: 'Use specific version instead'
+
+  dagger-flags:
+    description: 'Dagger CLI Flags'
+    required: false
+    default: '--progress plain'
+
+  verb:
+    description: 'CLI verb (call, run, download, up, functions, shell, query)'
+    required: false
+    default: 'call'
+
+  workdir:
+    description: 'The working directory in which to run the Dagger CLI'
+    required: false
+    default: '.'
+
+  cloud-token:
+    description: 'Dagger Cloud Token'
+    required: false
+    default: ''
+
+  module:
+    description: 'Dagger module to call. Local or Git'
+    required: false
+    default: ''
+
+  args:
+    description: 'Arguments to pass to CLI'
+    required: false
+    default: ''
+
+  engine-stop:
+    description: 'Deprecated'
+    required: false
+    deprecationMessage: 'engine-stop is now a no-op and will be removed in a future release'
+
+  call:
+    description: 'Function and arguments for dagger call'
+    required: false
+    default: ''
+
+  shell:
+    description: 'Function and arguments for dagger shell'
+    required: false
+    default: ''
+
+  summary-path:
+    description: 'File path to write the job summary'
+    required: false
+    default: ''
+
+  enable-github-summary:
+    description: 'Whether to write summary to GITHUB_STEP_SUMMARY'
+    required: false
+    default: 'false'
+
+outputs:
+  dagger-version:
+    description: 'The installed Dagger version'
+
+  cache-hit:
+    description: 'Whether the Dagger binary was restored from cache'
+
+  binary-path:
+    description: 'Path to the installed Dagger binary'
+
+  # Legacy outputs maintained for backward compatibility
+  output:
+    description: 'Job output (legacy)'
+
+  traceURL:
+    description: 'Dagger Cloud trace URL (legacy)'
+
+runs:
+  using: 'node24'
+  main: 'dist/index.js'
+  post: 'dist/index.js'
+  post-if: 'always()'
