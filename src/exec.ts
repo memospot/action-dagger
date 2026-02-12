@@ -87,10 +87,10 @@ export function assembleCommand(inputs: ActionInputs): string[] {
     }
 
     // Handle shell input - it bypasses verb but keeps flags.
-    // Shell content is kept as a single argument to preserve
-    // multi-line scripts and content with spaces.
+    // We treat shell input as command arguments that need to be parsed
     if (inputs.shell) {
-        parts.push(inputs.shell);
+        // Split the shell input into arguments, respecting quotes
+        parts.push(...splitArgs(inputs.shell));
         return parts;
     }
 
@@ -114,10 +114,52 @@ export function assembleCommand(inputs: ActionInputs): string[] {
 
     // Add arguments (split into individual args)
     if (args) {
-        parts.push(...args.split(/\s+/).filter(Boolean));
+        parts.push(...splitArgs(args));
     }
 
     return parts;
+}
+
+/**
+ * Split a string into arguments, respecting single and double quotes.
+ * Examples:
+ *   'echo "hello world"' -> ['echo', 'hello world']
+ *   'arg1 arg2' -> ['arg1', 'arg2']
+ */
+export function splitArgs(str: string): string[] {
+    const args: string[] = [];
+    let current = "";
+    let inDoubleQuote = false;
+    let inSingleQuote = false;
+
+    for (let i = 0; i < str.length; i++) {
+        const char = str[i];
+
+        if (char === '"' && !inSingleQuote) {
+            inDoubleQuote = !inDoubleQuote;
+            continue;
+        }
+
+        if (char === "'" && !inDoubleQuote) {
+            inSingleQuote = !inSingleQuote;
+            continue;
+        }
+
+        if (char === " " && !inDoubleQuote && !inSingleQuote) {
+            if (current.length > 0) {
+                args.push(current);
+                current = "";
+            }
+        } else {
+            current += char;
+        }
+    }
+
+    if (current.length > 0) {
+        args.push(current);
+    }
+
+    return args;
 }
 
 /**

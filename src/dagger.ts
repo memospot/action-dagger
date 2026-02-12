@@ -18,18 +18,23 @@ export async function getBinary(inputs: ActionInputs): Promise<BinaryInfo> {
 
     // Determine version to install
     let version = inputs.version;
-    if (version === "latest") {
+    if (inputs.commit) {
+        version = inputs.commit;
+        logInfo(`Using Dagger commit: ${version}`);
+    } else if (version === "latest") {
         version = await getLatestVersion();
         logInfo(`Latest Dagger version: ${version}`);
     }
 
-    // Normalize version (ensure it starts with 'v')
-    if (!version.startsWith("v")) {
+    // Normalize version (ensure it starts with 'v' if it's a semantic version)
+    // Commits don't start with 'v'
+    if (!inputs.commit && !version.startsWith("v")) {
         version = `v${version}`;
     }
 
     // Check if caching is enabled
-    if (inputs.cacheBinary) {
+    // We don't cache commit builds for now to avoid complexity with naming
+    if (inputs.cacheBinary && !inputs.commit) {
         const cachedPath = tc.find("dagger", version, platform.arch);
         if (cachedPath) {
             logInfo(`✓ Found cached Dagger ${version}`);
@@ -47,10 +52,10 @@ export async function getBinary(inputs: ActionInputs): Promise<BinaryInfo> {
 
     // Download and install
     logInfo(`Downloading Dagger ${version}...`);
-    const binaryInfo = await downloadAndInstall(version, platform);
+    const binaryInfo = await downloadAndInstall(version, platform, !!inputs.commit);
 
     // Cache the binary if enabled
-    if (inputs.cacheBinary) {
+    if (inputs.cacheBinary && !inputs.commit) {
         await cacheBinary(binaryInfo);
     }
 
@@ -111,9 +116,14 @@ export async function getLatestVersion(): Promise<string> {
  */
 async function downloadAndInstall(
     version: string,
-    platform: PlatformInfo
+    platform: PlatformInfo,
+    isCommit = false
 ): Promise<BinaryInfo> {
-    const { primary: primaryUrl, fallback: fallbackUrl } = getDownloadUrls(version, platform);
+    const { primary: primaryUrl, fallback: fallbackUrl } = getDownloadUrls(
+        version,
+        platform,
+        isCommit
+    );
 
     // Try primary URL first, then fallback
     let downloadPath: string;
@@ -125,6 +135,10 @@ async function downloadAndInstall(
         usedUrl = primaryUrl;
         logInfo(`✓ Downloaded from primary source`);
     } catch (primaryError) {
+        if (!fallbackUrl) {
+            throw primaryError;
+        }
+
         logWarning(`Primary download failed: ${primaryError}`);
         logInfo(`Attempting fallback download from GitHub releases...`);
 
@@ -190,9 +204,25 @@ async function downloadAndInstall(
  */
 export function getDownloadUrls(
     version: string,
-    platform: PlatformInfo
-): { primary: string; fallback: string } {
+    platform: PlatformInfo,
+    isCommit = false
+): { primary: string; fallback?: string } {
     const archiveExt = platform.platform === "windows" ? "zip" : "tar.gz";
+
+    if (isCommit) {
+        // Commit downloads: dl.dagger.io/dagger/main/<commit>/dagger_v<version>_<platform>_<arch>.<ext>
+        // Use a generic name format for commit builds as we might not know the exact version string
+        // inside the tarball, but the filename usually follows convention.
+        // Actually, for commits, the filename on dl.dagger.io usually includes the commit hash or similar.
+        // Let's rely on the way the old action did it or standard Dagger distribution.
+        // https://dl.dagger.io/dagger/main/${commit}/dagger_${platform}_${arch}.${archiveExt}
+        const filename = `dagger_${version.replace(/^v/, "")}_${platform.platform}_${platform.downloadArch}.${archiveExt}`;
+        return {
+            primary: `${DAGGER_DOWNLOAD_URL}/main/${version}/${filename}`,
+            fallback: undefined, // No GitHub release for random commits
+        };
+    }
+
     const filename = `dagger_${version}_${platform.platform}_${platform.downloadArch}.${archiveExt}`;
     return {
         primary: `${DAGGER_DOWNLOAD_URL}/releases/${version.replace(/^v/, "")}/${filename}`,

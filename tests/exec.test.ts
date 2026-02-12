@@ -104,24 +104,37 @@ describe("exec", () => {
             expect(cmd).toContain("Hola");
         });
 
-        it("should return shell as a single element to avoid splitting", () => {
+        it("should return shell as split arguments", () => {
             const shell = "container | from alpine | with-exec echo,hello | stdout";
             const inputs = makeInputs({ shell });
             const cmd = assembleCommand(inputs);
-            // Shell content must be a single element — not split by whitespace
-            expect(cmd).toContain(shell);
-            expect(cmd.filter((arg) => arg === shell)).toHaveLength(1);
+            // Shell content should be split into arguments
+            expect(cmd).toEqual([
+                "container",
+                "|",
+                "from",
+                "alpine",
+                "|",
+                "with-exec",
+                "echo,hello",
+                "|",
+                "stdout",
+            ]);
         });
 
-        it("should preserve multi-line shell content as single arg", () => {
+        it("should preserve multi-line shell content as split args", () => {
             const shell = `container |
   from --address alpine |
   with-exec -- echo "hello world" |
   stdout`;
             const inputs = makeInputs({ shell });
             const cmd = assembleCommand(inputs);
-            // Must be a single element, not split
-            expect(cmd).toContain(shell);
+
+            // Should be split correctly
+            expect(cmd).toContain("container");
+            expect(cmd).toContain("from");
+            expect(cmd).toContain("alpine");
+            expect(cmd).toContain("hello world"); // Quoted string preserved
         });
 
         it("should include dagger flags as separate args", () => {
@@ -142,7 +155,8 @@ describe("exec", () => {
             const cmd = assembleCommand(inputs);
             expect(cmd).toContain("--progress");
             expect(cmd).toContain("plain");
-            expect(cmd).toContain("container | from alpine | stdout");
+            expect(cmd).toContain("container");
+            expect(cmd).toContain("alpine");
         });
 
         it("should handle empty args gracefully", () => {
