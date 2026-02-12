@@ -192,7 +192,7 @@ describe("dagger", () => {
             const expectedExt = platform.platform === "windows" ? "zip" : "tar.gz";
             expect(primaryFilename).toMatch(
                 new RegExp(
-                    `^dagger_0\\.15\\.0_${platform.platform}_${platform.downloadArch}\\.${expectedExt}$`
+                    `^dagger_v0\\.15\\.0_${platform.platform}_${platform.downloadArch}\\.${expectedExt}$`
                 )
             );
         });
@@ -202,20 +202,20 @@ describe("dagger", () => {
             const urls = getDownloadUrls("v0.15.0", platform);
 
             expect(urls.primary).toMatch(
-                /^https:\/\/dl\.dagger\.io\/dagger\/releases\/v0\.15\.0\//
+                /^https:\/\/dl\.dagger\.io\/dagger\/releases\/0\.15\.0\//
             );
             expect(urls.fallback).toMatch(
                 /^https:\/\/github\.com\/dagger\/dagger\/releases\/download\/v0\.15\.0\//
             );
         });
 
-        it("should strip the v prefix from the filename", () => {
+        it("should include the v prefix in the filename", () => {
             const platform = getPlatformInfo();
             const urls = getDownloadUrls("v1.2.3", platform);
             const filename = urls.primary.split("/").pop() ?? "";
 
             expect(filename).toContain("1.2.3");
-            expect(filename).not.toMatch(/^dagger_v/);
+            expect(filename).toMatch(/^dagger_v/);
         });
 
         it("should use .zip extension for windows", () => {
