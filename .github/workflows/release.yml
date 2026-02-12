@@ -48,7 +48,12 @@ jobs:
           git config --local user.name "GitHub Action"
           git add -f dist/index.js
           git diff --staged --quiet || git commit -m "chore: update dist for release ${{ github.ref_name }}"
-          git push origin HEAD:${{ github.ref_name }}
+
+          # Re-tag to include the dist commit, then force-push.
+          # GITHUB_TOKEN pushes don't retrigger workflows, so this is safe.
+          TAG="${{ github.ref_name }}"
+          git tag -fa "${TAG}" -m "Release ${TAG}"
+          git push origin "refs/tags/${TAG}" --force
 
       - name: Update major version tag
         run: |

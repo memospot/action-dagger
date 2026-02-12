@@ -17,10 +17,51 @@ permissions:
   pull-requests: write
 
 jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Cache node_modules
+        uses: actions/cache@v5
+        with:
+          key: node_modules-${{ runner.os }}-${{ hashFiles('**/bun.lock', '**/package.json') }}
+          restore-keys: node_modules-${{ runner.os }}
+          path: ${{github.workspace}}/node_modules
+
+      - name: Cache Bun dependencies
+        uses: actions/cache@v5
+        with:
+          key: bundeps-${{ runner.os }}-${{ hashFiles('**/bun.lock', '**/package.json') }}
+          restore-keys: bundeps-${{ runner.os }}
+          path: ~/.bun/install
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build
+        run: bun run build
+
+      - name: Upload dist
+        uses: actions/upload-artifact@v6
+        with:
+          name: dist
+          path: dist/
+
   output:
+    needs: build
     runs-on: "ubuntu-latest"
     steps:
       - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          name: dist
+          path: dist/
 
       - name: "Use output"
         id: use-output
@@ -81,9 +122,15 @@ jobs:
           fi
 
   traceurl:
+    needs: build
     runs-on: "ubuntu-latest"
     steps:
       - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          name: dist
+          path: dist/
+
       - name: "TraceURL with cloud-token"
         id: traceurl-token
         uses: ./
@@ -121,9 +168,14 @@ jobs:
           fi
 
   version:
+    needs: build
     runs-on: "ubuntu-latest"
     steps:
       - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          name: dist
+          path: dist/
 
       - name: "Use latest"
         id: use-latest
@@ -216,9 +268,15 @@ jobs:
           fi
 
   call:
+    needs: build
     runs-on: "ubuntu-latest"
     steps:
       - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          name: dist
+          path: dist/
+
       - name: "Test call"
         id: test-call
         uses: ./
@@ -237,9 +295,15 @@ jobs:
           fi
 
   shell:
+    needs: build
     runs-on: "ubuntu-latest"
     steps:
       - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          name: dist
+          path: dist/
+
       - name: "Test shell"
         id: test-shell
         uses: ./
@@ -258,9 +322,15 @@ jobs:
           fi
 
   summary-path:
+    needs: build
     runs-on: "ubuntu-latest"
     steps:
       - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          name: dist
+          path: dist/
+
       - name: "Test summary-path"
         id: test-summary-path
         uses: ./
@@ -281,9 +351,15 @@ jobs:
           fi
 
   enable-github-summary:
+    needs: build
     runs-on: "ubuntu-latest"
     steps:
       - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          name: dist
+          path: dist/
+
       - name: "Test enable-github-summary=true (default)"
         id: test-github-summary-enabled
         uses: ./
@@ -301,9 +377,15 @@ jobs:
           fi
 
   nocall:
+    needs: build
     runs-on: "ubuntu-latest"
     steps:
       - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          name: dist
+          path: dist/
+
       - name: "Only Install"
         uses: ./
       - name: "Test Install"
@@ -311,9 +393,15 @@ jobs:
           dagger core version
 
   existing-install:
+    needs: build
     runs-on: "ubuntu-latest"
     steps:
       - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          name: dist
+          path: dist/
+
       - name: "preinstall dagger"
         run: |
           curl -fsS https://dl.dagger.io/dagger/install.sh \
@@ -332,9 +420,15 @@ jobs:
           fi
 
   commit-install:
+    needs: build
     runs-on: "ubuntu-latest"
     steps:
       - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          name: dist
+          path: dist/
+
       - name: "preinstall dagger"
         run: |
           curl -fsS https://dl.dagger.io/dagger/install.sh \
@@ -353,9 +447,15 @@ jobs:
           fi
 
   latest-install:
+    needs: build
     runs-on: "ubuntu-latest"
     steps:
       - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          name: dist
+          path: dist/
+
       - name: "preinstall dagger"
         run: |
           curl -fsS https://dl.dagger.io/dagger/install.sh \

@@ -13,13 +13,15 @@ flowchart TD
     E --> F["Release workflow triggers"]
 
     F --> G["Run tests & build"]
-    G --> H["Commit dist/index.js to tag"]
-    H --> I["Update major tag\ne.g. v1 → latest v1.x.x"]
-    I --> J["Update minor tag\ne.g. v1.2 → latest v1.2.x"]
-    J --> K["Create GitHub Release"]
+    G --> H["Commit dist/index.js"]
+    H --> I["Re-tag to include dist"]
+    I --> J["Update major tag\ne.g. v1 → latest v1.x.x"]
+    J --> K["Update minor tag\ne.g. v1.2 → latest v1.2.x"]
+    K --> L["Create GitHub Release"]
+
 
     style F fill:#2d6a4f,color:#fff
-    style K fill:#1b4332,color:#fff
+    style L fill:#1b4332,color:#fff
 ```
 
 ```text
@@ -38,6 +40,7 @@ flowchart TD
     │                  ┌────────────────────►│
     │                  │                     ├─ Run tests & build
     │                  │                     ├─ Commit dist/index.js
+    │                  │                     ├─ Re-tag to include dist
     │                  │                     ├─ Force-update v1 tag
     │                  │                     ├─ Force-update v1.2 tag
     │                  │                     └─ Create GitHub Release
@@ -74,7 +77,7 @@ flowchart TD
 
 3. The release workflow will automatically:
    - Run tests and build the project
-   - Commit `dist/index.js` to the tag
+   - Commit `dist/index.js` and re-tag to include it
    - Update the major floating tag (e.g., `v1`)
    - Update the minor floating tag (e.g., `v1.2`)
    - Create a GitHub release
