@@ -87,10 +87,9 @@ export function assembleCommand(inputs: ActionInputs): string[] {
     }
 
     // Handle shell input - it bypasses verb but keeps flags.
-    // We treat shell input as command arguments that need to be parsed
+    // We treat shell input as a single command string passed with -c
     if (inputs.shell) {
-        // Split the shell input into arguments, respecting quotes
-        parts.push(...splitArgs(inputs.shell));
+        parts.push("-c", inputs.shell);
         return parts;
     }
 
