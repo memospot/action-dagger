@@ -46,8 +46,9 @@ export async function setupDaggerCache(): Promise<void> {
         core.saveState(CACHE_PATHS_KEY, JSON.stringify(cacheConfig.paths));
 
         // Set environment variable for Dagger CLI
-        core.exportVariable("_EXPERIMENTAL_DAGGER_CACHE_CONFIG", cacheDir);
-        logDebug(`Set _EXPERIMENTAL_DAGGER_CACHE_CONFIG=${cacheDir}`);
+        const cacheConfigEnv = `type=local,src=${cacheDir}`;
+        core.exportVariable("_EXPERIMENTAL_DAGGER_CACHE_CONFIG", cacheConfigEnv);
+        logDebug(`Set _EXPERIMENTAL_DAGGER_CACHE_CONFIG=${cacheConfigEnv}`);
     } catch (error) {
         logWarning(`Failed to restore cache: ${error}`);
     }
