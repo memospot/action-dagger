@@ -193,9 +193,9 @@ export function getDownloadUrls(
     platform: PlatformInfo
 ): { primary: string; fallback: string } {
     const archiveExt = platform.platform === "windows" ? "zip" : "tar.gz";
-    const filename = `dagger_${version.replace("v", "")}_${platform.platform}_${platform.downloadArch}.${archiveExt}`;
+    const filename = `dagger_${version}_${platform.platform}_${platform.downloadArch}.${archiveExt}`;
     return {
-        primary: `${DAGGER_DOWNLOAD_URL}/releases/${version}/${filename}`,
+        primary: `${DAGGER_DOWNLOAD_URL}/releases/${version.replace(/^v/, "")}/${filename}`,
         fallback: `${GITHUB_RELEASES_URL}/${version}/${filename}`,
     };
 }
