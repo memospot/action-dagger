@@ -33,6 +33,19 @@ export async function executeDaggerCommand(
 
     // Assemble the command arguments
     const commandArgs = assembleCommand(inputs);
+
+    // Add cache flags if cache is enabled via env vars
+    const cacheTo = process.env.DAGGER_CACHE_TO;
+    const cacheFrom = process.env.DAGGER_CACHE_FROM;
+    if (cacheTo) {
+        commandArgs.unshift("--export-cache", cacheTo);
+        logDebug(`Adding --export-cache ${cacheTo}`);
+    }
+    if (cacheFrom) {
+        commandArgs.unshift("--import-cache", cacheFrom);
+        logDebug(`Adding --import-cache ${cacheFrom}`);
+    }
+
     logDebug(`Command: ${commandArgs.join(" ")}`);
 
     // Set up environment
