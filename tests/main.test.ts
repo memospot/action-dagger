@@ -33,6 +33,7 @@ mock.module("node:fs", () => ({
     existsSync: () => true,
     mkdirSync: () => undefined,
     chmodSync: () => undefined,
+    statSync: () => ({ size: 1024 }) as any,
 }));
 
 // Import AFTER all mocks are registered
