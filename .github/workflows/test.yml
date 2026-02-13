@@ -476,6 +476,9 @@ jobs:
   cache-test:
     needs: build
     runs-on: "ubuntu-latest"
+    permissions:
+      contents: read
+      actions: write
     steps:
       - uses: actions/checkout@v6
       - uses: actions/download-artifact@v7
@@ -483,11 +486,13 @@ jobs:
           name: dist
           path: dist/
 
-      - name: "Debug cache env vars"
+      - name: "Check cache BEFORE test"
         run: |
-          echo "DAGGER_CACHE_FROM: $DAGGER_CACHE_FROM"
-          echo "DAGGER_CACHE_TO: $DAGGER_CACHE_TO"
-          echo "_EXPERIMENTAL_DAGGER_CACHE_CONFIG: $_EXPERIMENTAL_DAGGER_CACHE_CONFIG"
+          echo "=== Cache entries before test ==="
+          gh cache list --limit 20 || echo "gh cache list failed"
+          echo ""
+          echo "=== Tool cache contents ==="
+          ls -la $RUNNER_TOOL_CACHE/dagger* 2>/dev/null || echo "No dagger in tool cache"
 
       - name: "Test Dagger caching - pull Alpine and add zip package"
         id: cache-test
@@ -496,29 +501,45 @@ jobs:
           version: latest
           verb: core
           args: container from --address=alpine with-exec --args apk,add,--no-cache,zip stdout
+          cache-binary: true
+          cache-builds: true
 
-      - name: "Check GitHub Actions cache"
+      - name: "Check outputs from first run"
         run: |
-          echo "Fetching cache info from GitHub API..."
-          curl -s -H "Authorization: token ${{ github.token }}" \
-            "https://api.github.com/repos/${{ github.repository }}/actions/caches" | \
-            jq '.actions_caches[] | {id: .id, key: .key, size_in_bytes: .size_in_bytes, created_at: .created_at}' 2>/dev/null || \
-            echo "Failed to fetch cache info or no caches found"
+          echo "Cache hit: ${{ steps.cache-test.outputs.cache-hit }}"
+          echo "Binary path: ${{ steps.cache-test.outputs.binary-path }}"
+          echo "Dagger version: ${{ steps.cache-test.outputs.dagger-version }}"
 
-      - name: "Cache test - run again to check for cache hits"
+      - name: "Check cache AFTER first run"
+        run: |
+          echo "=== Cache entries after first run ==="
+          gh cache list --limit 20 || echo "gh cache list failed"
+          echo ""
+          echo "=== Tool cache contents ==="
+          ls -la $RUNNER_TOOL_CACHE/ 2>/dev/null | head -20 || echo "No tool cache"
+          ls -la $RUNNER_TOOL_CACHE/dagger* 2>/dev/null || echo "No dagger in tool cache"
+
+      - name: "Test Dagger caching - SECOND RUN (should use cache)"
         id: cache-test-2
         uses: ./
         with:
           version: latest
           verb: core
           args: container from --address=alpine with-exec --args apk,add,--no-cache,zip stdout
+          cache-binary: true
+          cache-builds: true
 
-      - name: "Debug Dagger engine"
+      - name: "Check outputs from second run"
         run: |
-          echo "Checking Dagger engine status..."
-          dagger core version || echo "Dagger not available"
-          echo ""
-          echo "Checking for any dagger-related directories..."
-          find /var -name "*dagger*" -type d 2>/dev/null | head -20 || echo "No /var dagger dirs"
-          find /run -name "*dagger*" -type d 2>/dev/null | head -20 || echo "No /run dagger dirs"
-          find /tmp -name "*dagger*" -type d 2>/dev/null | head -20 || echo "No /tmp dagger dirs"
+          echo "Cache hit: ${{ steps.cache-test-2.outputs.cache-hit }}"
+          echo "Expected: true (binary should be cached)"
+          if [ "${{ steps.cache-test-2.outputs.cache-hit }}" != "true" ]; then
+            echo "ERROR: Binary cache hit expected but got: ${{ steps.cache-test-2.outputs.cache-hit }}"
+          fi
+
+      - name: "Check cache AFTER second run"
+        run: |
+          echo "=== Cache entries after second run ==="
+          gh cache list --limit 20 || echo "gh cache list failed"
+        env:
+          GH_TOKEN: ${{ github.token }}
