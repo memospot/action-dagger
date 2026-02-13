@@ -121,330 +121,330 @@ jobs:
             exit 1
           fi
 
-  # traceurl:
-  #   needs: build
-  #   runs-on: "ubuntu-latest"
-  #   steps:
-  #     - uses: actions/checkout@v6
-  #     - uses: actions/download-artifact@v7
-  #       with:
-  #         name: dist
-  #         path: dist/
+  traceurl:
+    needs: build
+    runs-on: "ubuntu-latest"
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          name: dist
+          path: dist/
 
-  #     - name: "TraceURL with cloud-token"
-  #       id: traceurl-token
-  #       uses: ./
-  #       with:
-  #         version: latest
-  #         verb: core
-  #         args: version
-  #         cloud-token: dag_dagger_sBIv6DsjNerWvTqt2bSFeigBUqWxp9bhh3ONSSgeFnw
-  #     - name: "Check traceURL output (should be set)"
-  #       run: |
-  #         url='${{ steps.traceurl-token.outputs.traceURL }}'
-  #         if [[ "$url" =~ ^https://dagger.cloud/.+/traces/.+ ]]; then
-  #           echo "traceURL found: $url"
-  #           exit 0
-  #         else
-  #           echo "traceURL not found"
-  #           exit 1
-  #         fi
-  #     - name: "TraceURL without cloud-token"
-  #       id: traceurl-nil
-  #       uses: ./
-  #       with:
-  #         version: latest
-  #         verb: core
-  #         args: version
-  #     - name: "Check traceURL output (should NOT be set)"
-  #       run: |
-  #         url='${{ steps.traceurl-nil.outputs.traceURL }}'
-  #         if [[ "$url" =~ ^https://dagger.cloud/traces/setup ]]; then
-  #           echo "traceURL correctly not set"
-  #           exit 0
-  #         else
-  #           echo "traceURL was set: $url"
-  #           exit 1
-  #         fi
+      - name: "TraceURL with cloud-token"
+        id: traceurl-token
+        uses: ./
+        with:
+          version: latest
+          verb: core
+          args: version
+          cloud-token: dag_dagger_sBIv6DsjNerWvTqt2bSFeigBUqWxp9bhh3ONSSgeFnw
+      - name: "Check traceURL output (should be set)"
+        run: |
+          url='${{ steps.traceurl-token.outputs.traceURL }}'
+          if [[ "$url" =~ ^https://dagger.cloud/.+/traces/.+ ]]; then
+            echo "traceURL found: $url"
+            exit 0
+          else
+            echo "traceURL not found"
+            exit 1
+          fi
+      - name: "TraceURL without cloud-token"
+        id: traceurl-nil
+        uses: ./
+        with:
+          version: latest
+          verb: core
+          args: version
+      - name: "Check traceURL output (should NOT be set)"
+        run: |
+          url='${{ steps.traceurl-nil.outputs.traceURL }}'
+          if [[ "$url" =~ ^https://dagger.cloud/traces/setup ]]; then
+            echo "traceURL correctly not set"
+            exit 0
+          else
+            echo "traceURL was set: $url"
+            exit 1
+          fi
 
-  # version:
-  #   needs: build
-  #   runs-on: "ubuntu-latest"
-  #   steps:
-  #     - uses: actions/checkout@v6
-  #     - uses: actions/download-artifact@v7
-  #       with:
-  #         name: dist
-  #         path: dist/
+  version:
+    needs: build
+    runs-on: "ubuntu-latest"
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          name: dist
+          path: dist/
 
-  #     - name: "Use latest"
-  #       id: use-latest
-  #       uses: ./
-  #       with:
-  #         version: latest
-  #         verb: core
-  #         args: version
-  #     - name: "Use latest (check)"
-  #       run: |
-  #         target='${{ steps.use-latest.outputs.output }}'
-  #         if [[ "$target" =~ v[0-9]*\.[0-9]*\.[0-9]* ]]; then
-  #           echo "matches"
-  #           exit 0
-  #         else
-  #           echo "does not match"
-  #           exit 1
-  #         fi
+      - name: "Use latest"
+        id: use-latest
+        uses: ./
+        with:
+          version: latest
+          verb: core
+          args: version
+      - name: "Use latest (check)"
+        run: |
+          target='${{ steps.use-latest.outputs.output }}'
+          if [[ "$target" =~ v[0-9]*\.[0-9]*\.[0-9]* ]]; then
+            echo "matches"
+            exit 0
+          else
+            echo "does not match"
+            exit 1
+          fi
 
-  #     - name: "Use v0.13.5"
-  #       id: use-v0-13-5
-  #       uses: ./
-  #       with:
-  #         version: v0.13.5
-  #         verb: core
-  #         args: version
-  #     - name: "Use v0.13.5 (check)"
-  #       run: |
-  #         target='${{ steps.use-v0-13-5.outputs.output }}'
-  #         if [[ "$target" =~ v0\.13\.5 ]]; then
-  #           echo "matches"
-  #           exit 0
-  #         else
-  #           echo "does not match"
-  #           exit 1
-  #         fi
+      - name: "Use v0.13.5"
+        id: use-v0-13-5
+        uses: ./
+        with:
+          version: v0.13.5
+          verb: core
+          args: version
+      - name: "Use v0.13.5 (check)"
+        run: |
+          target='${{ steps.use-v0-13-5.outputs.output }}'
+          if [[ "$target" =~ v0\.13\.5 ]]; then
+            echo "matches"
+            exit 0
+          else
+            echo "does not match"
+            exit 1
+          fi
 
-  #     - name: "Use 0.13.5 (no v)"
-  #       id: use-0-13-5
-  #       uses: ./
-  #       with:
-  #         version: 0.13.5
-  #         verb: core
-  #         args: version
-  #     - name: "Use 0.13.5 (check)"
-  #       run: |
-  #         target='${{ steps.use-0-13-5.outputs.output }}'
-  #         if [[ "$target" =~ v0\.13\.5 ]]; then
-  #           echo "matches"
-  #           exit 0
-  #         else
-  #           echo "does not match"
-  #           exit 1
-  #         fi
+      - name: "Use 0.13.5 (no v)"
+        id: use-0-13-5
+        uses: ./
+        with:
+          version: 0.13.5
+          verb: core
+          args: version
+      - name: "Use 0.13.5 (check)"
+        run: |
+          target='${{ steps.use-0-13-5.outputs.output }}'
+          if [[ "$target" =~ v0\.13\.5 ]]; then
+            echo "matches"
+            exit 0
+          else
+            echo "does not match"
+            exit 1
+          fi
 
-  #     - name: "Use commit"
-  #       id: use-commit
-  #       uses: ./
-  #       with:
-  #         commit: 540b4d1490f253054140f9249e823adf111e1c06
-  #         verb: core
-  #         args: version
-  #     - name: "Use commit (check)"
-  #       run: |
-  #         target='${{ steps.use-commit.outputs.output }}'
-  #         if [[ "$target" =~ v0\.13\.6-[0-9]+-540b4d1490f2 ]]; then
-  #           echo "matches"
-  #           exit 0
-  #         else
-  #           echo "does not match"
-  #           exit 1
-  #         fi
+      - name: "Use commit"
+        id: use-commit
+        uses: ./
+        with:
+          commit: 540b4d1490f253054140f9249e823adf111e1c06
+          verb: core
+          args: version
+      - name: "Use commit (check)"
+        run: |
+          target='${{ steps.use-commit.outputs.output }}'
+          if [[ "$target" =~ v0\.13\.6-[0-9]+-540b4d1490f2 ]]; then
+            echo "matches"
+            exit 0
+          else
+            echo "does not match"
+            exit 1
+          fi
 
-  #     - name: "Use head"
-  #       id: use-head
-  #       uses: ./
-  #       with:
-  #         commit: head
-  #         verb: core
-  #         args: version
-  #     - name: "Use head (check)"
-  #       run: |
-  #         target='${{ steps.use-commit.outputs.output }}'
-  #         if [[ "$target" =~ v[0-9]*\.[0-9]*\.[0-9]*-[0-9]+-[0-9a-f]{12} ]]; then
-  #           echo "matches"
-  #           exit 0
-  #         else
-  #           echo "does not match"
-  #           exit 1
-  #         fi
+      - name: "Use head"
+        id: use-head
+        uses: ./
+        with:
+          commit: head
+          verb: core
+          args: version
+      - name: "Use head (check)"
+        run: |
+          target='${{ steps.use-commit.outputs.output }}'
+          if [[ "$target" =~ v[0-9]*\.[0-9]*\.[0-9]*-[0-9]+-[0-9a-f]{12} ]]; then
+            echo "matches"
+            exit 0
+          else
+            echo "does not match"
+            exit 1
+          fi
 
-  # call:
-  #   needs: build
-  #   runs-on: "ubuntu-latest"
-  #   steps:
-  #     - uses: actions/checkout@v6
-  #     - uses: actions/download-artifact@v7
-  #       with:
-  #         name: dist
-  #         path: dist/
+  call:
+    needs: build
+    runs-on: "ubuntu-latest"
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          name: dist
+          path: dist/
 
-  #     - name: "Test call"
-  #       id: test-call
-  #       uses: ./
-  #       with:
-  #         module: github.com/shykes/daggerverse/hello@v0.3.0
-  #         call: hello
-  #     - name: "Test call (check)"
-  #       run: |
-  #         target='${{ steps.test-call.outputs.output }}'
-  #         if [[ "$target" == "hello, world!" ]]; then
-  #           echo "matches"
-  #           exit 0
-  #         else
-  #           echo "does not match"
-  #           exit 1
-  #         fi
+      - name: "Test call"
+        id: test-call
+        uses: ./
+        with:
+          module: github.com/shykes/daggerverse/hello@v0.3.0
+          call: hello
+      - name: "Test call (check)"
+        run: |
+          target='${{ steps.test-call.outputs.output }}'
+          if [[ "$target" == "hello, world!" ]]; then
+            echo "matches"
+            exit 0
+          else
+            echo "does not match"
+            exit 1
+          fi
 
-  # shell:
-  #   needs: build
-  #   runs-on: "ubuntu-latest"
-  #   steps:
-  #     - uses: actions/checkout@v6
-  #     - uses: actions/download-artifact@v7
-  #       with:
-  #         name: dist
-  #         path: dist/
+  shell:
+    needs: build
+    runs-on: "ubuntu-latest"
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          name: dist
+          path: dist/
 
-  #     - name: "Test shell"
-  #       id: test-shell
-  #       uses: ./
-  #       with:
-  #         shell: 'container | from alpine | with-exec echo,-n,"hello world!" | stdout'
-  #     - name: "Test shell (check)"
-  #       run: |
-  #         target='${{ steps.test-shell.outputs.output }}'
-  #         result='hello world!'
-  #         if [[ "$target" == "$result" ]]; then
-  #           echo "matches"
-  #           exit 0
-  #         else
-  #           echo "does not match"
-  #           exit 1
-  #         fi
+      - name: "Test shell"
+        id: test-shell
+        uses: ./
+        with:
+          shell: 'container | from alpine | with-exec echo,-n,"hello world!" | stdout'
+      - name: "Test shell (check)"
+        run: |
+          target='${{ steps.test-shell.outputs.output }}'
+          result='hello world!'
+          if [[ "$target" == "$result" ]]; then
+            echo "matches"
+            exit 0
+          else
+            echo "does not match"
+            exit 1
+          fi
 
-  # summary-path:
-  #   needs: build
-  #   runs-on: "ubuntu-latest"
-  #   steps:
-  #     - uses: actions/checkout@v6
-  #     - uses: actions/download-artifact@v7
-  #       with:
-  #         name: dist
-  #         path: dist/
+  summary-path:
+    needs: build
+    runs-on: "ubuntu-latest"
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          name: dist
+          path: dist/
 
-  #     - name: "Test summary-path"
-  #       id: test-summary-path
-  #       uses: ./
-  #       with:
-  #         version: latest
-  #         verb: core
-  #         args: version
-  #         summary-path: "/tmp/custom-summary.md"
-  #     - name: "Check custom summary file"
-  #       run: |
-  #         if [[ -f "/tmp/custom-summary.md" ]] && [[ -s "/tmp/custom-summary.md" ]]; then
-  #           echo "Custom summary file exists and has content"
-  #           echo "Content preview:"
-  #           head -10 "/tmp/custom-summary.md"
-  #         else
-  #           echo "Custom summary file missing or empty"
-  #           exit 1
-  #         fi
+      - name: "Test summary-path"
+        id: test-summary-path
+        uses: ./
+        with:
+          version: latest
+          verb: core
+          args: version
+          summary-path: "/tmp/custom-summary.md"
+      - name: "Check custom summary file"
+        run: |
+          if [[ -f "/tmp/custom-summary.md" ]] && [[ -s "/tmp/custom-summary.md" ]]; then
+            echo "Custom summary file exists and has content"
+            echo "Content preview:"
+            head -10 "/tmp/custom-summary.md"
+          else
+            echo "Custom summary file missing or empty"
+            exit 1
+          fi
 
-  # enable-github-summary:
-  #   needs: build
-  #   runs-on: "ubuntu-latest"
-  #   steps:
-  #     - uses: actions/checkout@v6
-  #     - uses: actions/download-artifact@v7
-  #       with:
-  #         name: dist
-  #         path: dist/
+  enable-github-summary:
+    needs: build
+    runs-on: "ubuntu-latest"
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          name: dist
+          path: dist/
 
-  #     - name: "Test enable-github-summary=true (default)"
-  #       id: test-github-summary-enabled
-  #       uses: ./
-  #       with:
-  #         version: latest
-  #         verb: core
-  #         args: version
-  #     - name: "Check github summary enabled"
-  #       run: |
-  #         if [[ -n "${GITHUB_STEP_SUMMARY}" ]]; then
-  #           echo "GitHub step summary was written (default behavior)"
-  #         else
-  #           echo "GitHub step summary not written when it should have been"
-  #           exit 1
-  #         fi
+      - name: "Test enable-github-summary=true (default)"
+        id: test-github-summary-enabled
+        uses: ./
+        with:
+          version: latest
+          verb: core
+          args: version
+      - name: "Check github summary enabled"
+        run: |
+          if [[ -n "${GITHUB_STEP_SUMMARY}" ]]; then
+            echo "GitHub step summary was written (default behavior)"
+          else
+            echo "GitHub step summary not written when it should have been"
+            exit 1
+          fi
 
-  # nocall:
-  #   needs: build
-  #   runs-on: "ubuntu-latest"
-  #   steps:
-  #     - uses: actions/checkout@v6
-  #     - uses: actions/download-artifact@v7
-  #       with:
-  #         name: dist
-  #         path: dist/
+  nocall:
+    needs: build
+    runs-on: "ubuntu-latest"
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          name: dist
+          path: dist/
 
-  #     - name: "Only Install"
-  #       uses: ./
-  #     - name: "Test Install"
-  #       run: |
-  #         dagger core version
+      - name: "Only Install"
+        uses: ./
+      - name: "Test Install"
+        run: |
+          dagger core version
 
-  # existing-install:
-  #   needs: build
-  #   runs-on: "ubuntu-latest"
-  #   steps:
-  #     - uses: actions/checkout@v6
-  #     - uses: actions/download-artifact@v7
-  #       with:
-  #         name: dist
-  #         path: dist/
+  existing-install:
+    needs: build
+    runs-on: "ubuntu-latest"
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          name: dist
+          path: dist/
 
-  #     - name: "preinstall dagger"
-  #       run: |
-  #         curl -fsS https://dl.dagger.io/dagger/install.sh \
-  #         | BIN_DIR=/usr/local/bin DAGGER_VERSION="v0.18.17" sh
-  #     - name: "Install with version"
-  #       uses: ./
-  #       with:
-  #         version: "v0.18.16"
-  #     - name: "Test Install"
-  #       run: |
-  #         if [[ "$(dagger core version)" == "v0.18.16" ]]; then
-  #           exit 0
-  #         else
-  #           echo "Existing install was not overridden"
-  #           exit 1
-  #         fi
+      - name: "preinstall dagger"
+        run: |
+          curl -fsS https://dl.dagger.io/dagger/install.sh \
+          | BIN_DIR=/usr/local/bin DAGGER_VERSION="v0.18.17" sh
+      - name: "Install with version"
+        uses: ./
+        with:
+          version: "v0.18.16"
+      - name: "Test Install"
+        run: |
+          if [[ "$(dagger core version)" == "v0.18.16" ]]; then
+            exit 0
+          else
+            echo "Existing install was not overridden"
+            exit 1
+          fi
 
-  # commit-install:
-  #   needs: build
-  #   runs-on: "ubuntu-latest"
-  #   steps:
-  #     - uses: actions/checkout@v6
-  #     - uses: actions/download-artifact@v7
-  #       with:
-  #         name: dist
-  #         path: dist/
+  commit-install:
+    needs: build
+    runs-on: "ubuntu-latest"
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          name: dist
+          path: dist/
 
-  #     - name: "preinstall dagger"
-  #       run: |
-  #         curl -fsS https://dl.dagger.io/dagger/install.sh \
-  #         | BIN_DIR=/usr/local/bin DAGGER_VERSION="v0.18.17" sh
-  #     - name: "Install with version"
-  #       uses: ./
-  #       with:
-  #         commit: "71f2e104b045ddc3b0cc611b81370707bf21bc27"
-  #     - name: "Test Install"
-  #       run: |
-  #         if [[ "$(dagger version)" == *"v0.18.19-250918123923-71f2e104b045"* ]]; then
-  #           exit 0
-  #         else
-  #           echo "Existing install was not overridden"
-  #           exit 1
-  #         fi
+      - name: "preinstall dagger"
+        run: |
+          curl -fsS https://dl.dagger.io/dagger/install.sh \
+          | BIN_DIR=/usr/local/bin DAGGER_VERSION="v0.18.17" sh
+      - name: "Install with version"
+        uses: ./
+        with:
+          commit: "71f2e104b045ddc3b0cc611b81370707bf21bc27"
+      - name: "Test Install"
+        run: |
+          if [[ "$(dagger version)" == *"v0.18.19-250918123923-71f2e104b045"* ]]; then
+            exit 0
+          else
+            echo "Existing install was not overridden"
+            exit 1
+          fi
 
   latest-install:
     needs: build
@@ -472,125 +472,3 @@ jobs:
             echo "Existing install was not overridden with latest"
             exit 1
           fi
-
-  cache-test:
-    needs: build
-    runs-on: "ubuntu-latest"
-    permissions:
-      contents: read
-      actions: write
-    env:
-      GH_TOKEN: ${{ github.token }}
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/download-artifact@v7
-        with:
-          name: dist
-          path: dist/
-
-      - name: "Check cache BEFORE test"
-        run: |
-          echo "=== Cache entries before test ==="
-          gh cache list --limit 30 --json key,sizeInBytes,createdAt,ref | jq '.[] | select(.key | contains("dagger"))' || echo "gh cache list failed"
-          echo ""
-          echo "=== Tool cache contents ==="
-          ls -la $RUNNER_TOOL_CACHE/dagger* 2>/dev/null || echo "No dagger in tool cache"
-
-      - name: "Debug GitHub Actions env vars for cache"
-        run: |
-          echo "=== GitHub Actions Cache Env Vars ==="
-          echo "ACTIONS_CACHE_URL: ${ACTIONS_CACHE_URL:-not set}"
-          echo "ACTIONS_RUNTIME_URL: ${ACTIONS_RUNTIME_URL:-not set}"
-          echo "ACTIONS_RUNTIME_TOKEN: ${ACTIONS_RUNTIME_TOKEN:+set (hidden)}"
-          echo ""
-          echo "These env vars are required for type=gha cache backend to work"
-
-      - name: "Test Dagger caching - pull Alpine and add zip package"
-        id: cache-test
-        uses: ./
-        with:
-          version: latest
-          verb: core
-          args: container from --address=alpine with-exec --args apk,add,--no-cache,zip stdout
-          cache-binary: true
-          cache-builds: true
-          dagger-flags: "--progress plain"
-
-      - name: "Check outputs from first run"
-        run: |
-          echo "Cache hit: ${{ steps.cache-test.outputs.cache-hit }}"
-          echo "Binary path: ${{ steps.cache-test.outputs.binary-path }}"
-          echo "Dagger version: ${{ steps.cache-test.outputs.dagger-version }}"
-
-      - name: "Check cache directory contents after first run"
-        run: |
-          echo "=== Cache directory contents ==="
-          CACHE_DIR="/home/runner/work/_temp/dagger-build-cache"
-          if [ -d "$CACHE_DIR" ]; then
-            echo "Cache directory exists: $CACHE_DIR"
-            du -sh "$CACHE_DIR" 2>/dev/null || echo "Could not get size"
-            find "$CACHE_DIR" -type f | head -20 || echo "No files found"
-            ls -la "$CACHE_DIR" 2>/dev/null || echo "Could not list directory"
-          else
-            echo "Cache directory does not exist: $CACHE_DIR"
-          fi
-          echo ""
-          echo "=== Looking for cache in other temp locations ==="
-          find /home/runner/work/_temp -name "*dagger*" -type d 2>/dev/null | head -10 || echo "No other dagger directories found"
-
-      - name: "Check cache AFTER first run"
-        run: |
-          echo "=== Cache entries after first run ==="
-          gh cache list --limit 30 --json key,sizeInBytes,createdAt,ref | jq '.[] | select(.key | contains("dagger"))' || echo "gh cache list failed"
-          echo ""
-          echo "=== Tool cache contents ==="
-          ls -la $RUNNER_TOOL_CACHE/ 2>/dev/null | head -20 || echo "No tool cache"
-          ls -la $RUNNER_TOOL_CACHE/dagger* 2>/dev/null || echo "No dagger in tool cache"
-
-      - name: "Test Dagger caching - SECOND RUN (should use cache)"
-        id: cache-test-2
-        uses: ./
-        with:
-          version: latest
-          verb: core
-          args: container from --address=alpine with-exec --args apk,add,--no-cache,zip stdout
-          cache-binary: true
-          cache-builds: true
-          dagger-flags: "--progress plain"
-
-      - name: "Check cache directory contents after second run"
-        run: |
-          echo "=== Cache directory contents (after 2nd run) ==="
-          CACHE_DIR="/home/runner/work/_temp/dagger-build-cache"
-          if [ -d "$CACHE_DIR" ]; then
-            echo "Cache directory exists: $CACHE_DIR"
-            du -sh "$CACHE_DIR" 2>/dev/null || echo "Could not get size"
-            find "$CACHE_DIR" -type f | wc -l || echo "Could not count files"
-          else
-            echo "Cache directory does not exist: $CACHE_DIR"
-          fi
-
-      - name: "Check outputs from second run"
-        run: |
-          echo "Cache hit: ${{ steps.cache-test-2.outputs.cache-hit }}"
-          echo "Expected: true (binary should be cached)"
-          if [ "${{ steps.cache-test-2.outputs.cache-hit }}" != "true" ]; then
-            echo "ERROR: Binary cache hit expected but got: ${{ steps.cache-test-2.outputs.cache-hit }}"
-          fi
-          echo ""
-          echo "=== Timing Comparison ==="
-          echo "First run should have created and saved the cache"
-          echo "Second run should have restored the cache from GitHub Actions"
-          echo "Note: Build cache uses type=local, so timing comparison shows if Dagger used the cache"
-
-      - name: "Check cache AFTER second run"
-        run: |
-          echo "=== Cache entries after second run ==="
-          echo "All cache entries with 'dagger' in key:"
-          gh cache list --limit 30 --json key,sizeInBytes,createdAt,ref | jq '.[] | select(.key | contains("dagger"))' || echo "gh cache list failed"
-          echo ""
-          echo "=== Summary ==="
-          echo "If build cache is working:"
-          echo "  - Second run should be faster than first"
-          echo "  - Cache entries should be >1KB (ideally MBs for container layers)"
-          echo "  - 198 byte entries indicate metadata-only caching (not working)"

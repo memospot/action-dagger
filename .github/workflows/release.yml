@@ -1,10 +1,10 @@
-name: Release
+name: Release (Tag)
 
 on:
   push:
     tags:
       - "v*"
-
+  workflow_dispatch:
 jobs:
   release:
     runs-on: ubuntu-latest
@@ -18,13 +18,6 @@ jobs:
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
-
-      - name: Cache node_modules
-        uses: actions/cache@v5
-        with:
-          key: node_modules-${{ runner.os }}-${{ hashFiles('**/bun.lock', '**/package.json') }}
-          restore-keys: node_modules-${{ runner.os }}
-          path: ${{github.workspace}}/node_modules
 
       - name: Cache Bun dependencies
         uses: actions/cache@v5
