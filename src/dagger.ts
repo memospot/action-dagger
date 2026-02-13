@@ -235,8 +235,17 @@ export function getDownloadUrls(
  */
 async function cacheBinary(binaryInfo: BinaryInfo): Promise<void> {
     try {
-        await tc.cacheDir(binaryInfo.dir, "dagger", binaryInfo.version, binaryInfo.arch);
-        logDebug(`Cached Dagger ${binaryInfo.version}`);
+        logDebug(
+            `Caching binary to tool-cache: tool=dagger, version=${binaryInfo.version}, arch=${binaryInfo.arch}`
+        );
+        logDebug(`Source directory: ${binaryInfo.dir}`);
+        const cachedPath = await tc.cacheDir(
+            binaryInfo.dir,
+            "dagger",
+            binaryInfo.version,
+            binaryInfo.arch
+        );
+        logInfo(`✓ Cached Dagger ${binaryInfo.version} to ${cachedPath}`);
     } catch (error) {
         logWarning(`Failed to cache binary: ${error}`);
     }

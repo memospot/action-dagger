@@ -491,7 +491,7 @@ jobs:
       - name: "Check cache BEFORE test"
         run: |
           echo "=== Cache entries before test ==="
-          gh cache list --limit 20 || echo "gh cache list failed"
+          gh cache list --limit 30 --json key,sizeInBytes,createdAt,ref | jq '.[] | select(.key | contains("dagger"))' || echo "gh cache list failed"
           echo ""
           echo "=== Tool cache contents ==="
           ls -la $RUNNER_TOOL_CACHE/dagger* 2>/dev/null || echo "No dagger in tool cache"
@@ -515,7 +515,7 @@ jobs:
       - name: "Check cache AFTER first run"
         run: |
           echo "=== Cache entries after first run ==="
-          gh cache list --limit 20 || echo "gh cache list failed"
+          gh cache list --limit 30 --json key,sizeInBytes,createdAt,ref | jq '.[] | select(.key | contains("dagger"))' || echo "gh cache list failed"
           echo ""
           echo "=== Tool cache contents ==="
           ls -la $RUNNER_TOOL_CACHE/ 2>/dev/null | head -20 || echo "No tool cache"
@@ -542,6 +542,11 @@ jobs:
       - name: "Check cache AFTER second run"
         run: |
           echo "=== Cache entries after second run ==="
-          gh cache list --limit 20 || echo "gh cache list failed"
-        env:
-          GH_TOKEN: ${{ github.token }}
+          echo "All cache entries with 'dagger' in key:"
+          gh cache list --limit 30 --json key,sizeInBytes,createdAt,ref | jq '.[] | select(.key | contains("dagger"))' || echo "gh cache list failed"
+          echo ""
+          echo "=== Summary ==="
+          echo "If build cache is working:"
+          echo "  - Second run should be faster than first"
+          echo "  - Cache entries should be >1KB (ideally MBs for container layers)"
+          echo "  - 198 byte entries indicate metadata-only caching (not working)"
