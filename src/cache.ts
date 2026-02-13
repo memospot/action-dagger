@@ -49,10 +49,14 @@ export async function setupDaggerCache(): Promise<void> {
         // We set both the experimental env var (for older versions) and the standard one
         const cacheConfigEnv = `type=local,src=${cacheDir},dest=${cacheDir},mode=max`;
         core.exportVariable("_EXPERIMENTAL_DAGGER_CACHE_CONFIG", cacheConfigEnv);
+        process.env["_EXPERIMENTAL_DAGGER_CACHE_CONFIG"] = cacheConfigEnv;
 
         // Also set standard Dagger cache env vars
         core.exportVariable("DAGGER_CACHE_FROM", `type=local,src=${cacheDir}`);
+        process.env["DAGGER_CACHE_FROM"] = `type=local,src=${cacheDir}`;
+
         core.exportVariable("DAGGER_CACHE_TO", `type=local,dest=${cacheDir},mode=max`);
+        process.env["DAGGER_CACHE_TO"] = `type=local,dest=${cacheDir},mode=max`;
 
         logDebug(`Set _EXPERIMENTAL_DAGGER_CACHE_CONFIG=${cacheConfigEnv}`);
         logDebug(`Set DAGGER_CACHE_FROM=type=local,src=${cacheDir}`);

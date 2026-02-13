@@ -133,6 +133,11 @@ describe("cache", () => {
             expect(exportedVars).toContain("_EXPERIMENTAL_DAGGER_CACHE_CONFIG");
             expect(exportedVars).toContain("DAGGER_CACHE_FROM");
             expect(exportedVars).toContain("DAGGER_CACHE_TO");
+
+            // Verify process.env is also updated (crucial for current process usage)
+            expect(process.env._EXPERIMENTAL_DAGGER_CACHE_CONFIG).toBeDefined();
+            expect(process.env.DAGGER_CACHE_FROM).toBeDefined();
+            expect(process.env.DAGGER_CACHE_TO).toBeDefined();
         });
 
         it("should log hit message when cache is restored", async () => {
