@@ -146,15 +146,20 @@ describe("main", () => {
         it("should call saveCache when cache-builds is enabled", async () => {
             process.env.INPUT_VERSION = "v0.15.0";
             process.env.INPUT_CACHE_BUILDS = "true";
-            mockExec._setExecResult(0, "mock-container-id", "");
+
+            // Ensure engine mock returns a container ID
+            mockEngine.findEngineContainer.mockImplementation(() =>
+                Promise.resolve("mock-container-id")
+            );
 
             await post();
 
-            // Should call saveCache logic
-            // engine.findEngineContainer -> exec docker ps -> returns mock-id
-            // engine.stopEngine -> exec docker stop
-            // engine.backupEngineVolume -> exec docker run
-            // cache.saveCache -> called
+            // Verify the engine functions were called
+            expect(mockEngine.findEngineContainer).toHaveBeenCalled();
+            expect(mockEngine.stopEngine).toHaveBeenCalled();
+            expect(mockEngine.backupEngineVolume).toHaveBeenCalled();
+
+            // Should save to cache
             expect(mockCache._trackers.saveCache.calls).toHaveLength(1);
         });
 

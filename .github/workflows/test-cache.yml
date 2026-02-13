@@ -11,6 +11,10 @@ on:
       - ready_for_review
   workflow_dispatch:
 
+concurrency:
+  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.ref }}
+
 permissions:
   contents: read
   pull-requests: write
