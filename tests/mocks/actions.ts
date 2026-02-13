@@ -291,7 +291,10 @@ export const mockExec = {
         options?: unknown
     ): Promise<{ exitCode: number; stdout: string; stderr: string }> => {
         execTrackers.getExecOutput.track(commandLine, args, options);
-        return { exitCode: 0, stdout: "dagger v0.15.0", stderr: "" };
+        if (execShouldFail) {
+            throw new Error("Mock exec failed");
+        }
+        return { exitCode: execExitCode, stdout: execStdout, stderr: execStderr };
     },
 };
 

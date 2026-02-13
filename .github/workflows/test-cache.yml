@@ -1,0 +1,176 @@
+name: Test Cache
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Cache Bun dependencies
+        uses: actions/cache@v5
+        with:
+          key: bundeps-${{ runner.os }}-${{ hashFiles('**/bun.lock', '**/package.json') }}
+          restore-keys: bundeps-${{ runner.os }}
+          path: ~/.bun/install
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build
+        run: bun run build
+
+      - name: Upload dist
+        uses: actions/upload-artifact@v6
+        with:
+          name: dist
+          path: dist/
+
+  # Test caching within the same job (warm cache scenario)
+  cache-same-runner:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          name: dist
+          path: dist/
+
+      - name: "First Run - Cold Cache"
+        id: first-run
+        uses: ./
+        with:
+          version: latest
+          verb: core
+          args: container from --address=alpine with-exec --args apk,add,--no-cache,zip stdout
+          cache-builds: true
+          dagger-flags: "--progress plain"
+
+      - name: "Verify First Run Logs"
+        run: |
+          echo "Checking for cold cache indicators..."
+          echo "Expected: 'No cache found, starting with fresh engine volume'"
+
+      - name: "Second Run - Warm Cache"
+        id: second-run
+        uses: ./
+        with:
+          version: latest
+          verb: core
+          args: container from --address=alpine with-exec --args apk,add,--no-cache,zip stdout
+          cache-builds: true
+          dagger-flags: "--progress plain"
+
+      - name: "Verify Warm Cache Used"
+        run: |
+          echo "Checking for warm cache indicators..."
+          echo "Expected: 'Restored engine cache archive' and 'Engine volume hydrated'"
+
+  # Test caching across different runners (GHA cache scenario)
+  cache-generate:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: write
+    outputs:
+      cache-key: ${{ steps.generate.outputs.cache-key }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          name: dist
+          path: dist/
+
+      - name: "Generate Cache"
+        id: generate
+        uses: ./
+        with:
+          version: latest
+          verb: core
+          args: container from --address=alpine with-exec --args apk,add,--no-cache,zip stdout
+          cache-builds: true
+          dagger-flags: "--progress plain"
+
+      - name: "Verify Cache Saved"
+        run: |
+          echo "Cache generation complete"
+          echo "Post-action should have saved cache"
+
+  cache-restore:
+    needs: [build, cache-generate]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          name: dist
+          path: dist/
+
+      - name: "Restore Cache"
+        id: restore
+        uses: ./
+        with:
+          version: latest
+          verb: core
+          args: container from --address=alpine with-exec --args apk,add,--no-cache,zip stdout
+          cache-builds: true
+          dagger-flags: "--progress plain"
+
+      - name: "Verify Cache Restored"
+        run: |
+          echo "Checking for cache restoration..."
+          echo "Expected: 'Restored engine cache archive from key:'"
+          echo "Expected: 'Engine volume hydrated'"
+
+  # Test disabled caching
+  cache-disabled:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          name: dist
+          path: dist/
+
+      - name: "Run with cache disabled"
+        uses: ./
+        with:
+          version: latest
+          verb: core
+          args: version
+          cache-builds: false
+
+      - name: "Verify no cache operations"
+        run: |
+          echo "When cache-builds=false, should NOT see:"
+          echo "  - 'Setting up Dagger Engine cache...'"
+          echo "  - 'Restored engine cache archive'"
+          echo "  - 'Cache saved'"

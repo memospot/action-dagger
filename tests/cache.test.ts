@@ -1,19 +1,39 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
-import { mockCore, resetAllMocks } from "./mocks/actions.js";
+import { mockCache, mockCore, resetAllMocks } from "./mocks/actions.js";
 
 // ---------------------------------------------------------------------------
 // Module mocks — must be registered before importing the module under test.
 // ---------------------------------------------------------------------------
 
-const mockCacheRestore = mock(() => Promise.resolve(undefined));
-const mockCacheSave = mock(() => Promise.resolve(1));
-
-mock.module("@actions/cache", () => ({
-    restoreCache: mockCacheRestore,
-    saveCache: mockCacheSave,
-}));
-
+mock.module("@actions/cache", () => mockCache);
 mock.module("@actions/core", () => mockCore);
+
+// Mock the engine module
+const mockEngine = {
+    findEngineContainer: mock(() => Promise.resolve("mock-container-id")),
+    stopEngine: mock(() => Promise.resolve(true)),
+    backupEngineVolume: mock(() => Promise.resolve()),
+    restoreEngineVolume: mock(() => Promise.resolve()),
+    startEngine: mock(() => Promise.resolve()),
+};
+
+mock.module("../src/engine.js", () => mockEngine);
+
+// Mock node:fs to control existsSync
+const mockFs = {
+    existsSync: mock(() => false),
+    statSync: mock(() => ({ size: 1024 })),
+    mkdirSync: mock(() => undefined),
+    rmSync: mock(() => undefined),
+    writeFileSync: mock(() => undefined),
+};
+
+// We need to spread the original fs to keep other methods working if needed,
+// but for cache.ts we mostly need these.
+mock.module("node:fs", () => ({
+    ...require("node:fs"),
+    ...mockFs,
+}));
 
 // Import the module under test AFTER mocks are registered.
 import { saveDaggerCache, setupDaggerCache } from "../src/cache.js";
@@ -25,73 +45,71 @@ import { saveDaggerCache, setupDaggerCache } from "../src/cache.js";
 describe("cache", () => {
     beforeEach(() => {
         resetAllMocks();
-        mockCacheRestore.mockClear();
-        mockCacheSave.mockClear();
+        mockEngine.findEngineContainer.mockClear();
+        mockEngine.stopEngine.mockClear();
+        mockEngine.backupEngineVolume.mockClear();
+        mockEngine.restoreEngineVolume.mockClear();
+        mockEngine.startEngine.mockClear();
+
+        mockFs.existsSync.mockClear();
+        mockFs.statSync.mockClear();
+
+        // Default fs behavior
+        mockFs.existsSync.mockReturnValue(false);
     });
 
     afterEach(() => {
         delete process.env.GITHUB_WORKFLOW;
-        delete process.env.GITHUB_JOB;
         delete process.env.GITHUB_REPOSITORY;
         delete process.env.RUNNER_TEMP;
-        // cleanup process.env vars set by the code
-        delete process.env._EXPERIMENTAL_DAGGER_CACHE_CONFIG;
-        delete process.env.DAGGER_CACHE_FROM;
-        delete process.env.DAGGER_CACHE_TO;
     });
 
     // -----------------------------------------------------------------------
     // setupDaggerCache
     // -----------------------------------------------------------------------
     describe("setupDaggerCache", () => {
-        it("should attempt to restore cache and export local cache env vars", async () => {
+        it("should restore cache and hydrate engine volume", async () => {
             process.env.GITHUB_WORKFLOW = "test-flow";
             process.env.GITHUB_REPOSITORY = "test-org/test-repo";
             process.env.RUNNER_TEMP = "/tmp";
 
-            mockCacheRestore.mockImplementation(() =>
-                Promise.resolve("dagger-build-test-org/test-repo-test-flow")
-            );
+            // Mock successful cache restore
+            mockCache._setRestoreResult("dagger-cache-key");
 
-            await setupDaggerCache();
+            await setupDaggerCache("v0.15.0");
 
             // Should call restoreCache
-            expect(mockCacheRestore.mock.calls.length).toBe(1);
-            const restoreCall = mockCacheRestore.mock.calls[0];
-            expect(restoreCall[0][0]).toContain("dagger-build-cache");
-            expect(restoreCall[1]).toBe("dagger-build-test-org/test-repo-test-flow");
+            expect(mockCache._trackers.restoreCache.calls).toHaveLength(1);
 
-            // Should export 3 environment variables
-            expect(mockCore._trackers.exportVariable.calls).toHaveLength(3);
+            // Should call engine restore
+            expect(mockEngine.restoreEngineVolume).toHaveBeenCalled();
 
-            const exportCalls = mockCore._trackers.exportVariable.calls;
-            const exportedVars = exportCalls.map((c) => c.args[0]);
+            // Should start engine
+            expect(mockEngine.startEngine).toHaveBeenCalled();
 
-            expect(exportedVars).toContain("_EXPERIMENTAL_DAGGER_CACHE_CONFIG");
-            expect(exportedVars).toContain("DAGGER_CACHE_FROM");
-            expect(exportedVars).toContain("DAGGER_CACHE_TO");
-
-            // Verify process.env is updated with type=local instead of type=gha
-            expect(process.env.DAGGER_CACHE_FROM).toContain("type=local");
-            expect(process.env.DAGGER_CACHE_FROM).toContain("src=");
-
-            expect(process.env.DAGGER_CACHE_TO).toContain("type=local");
-            expect(process.env.DAGGER_CACHE_TO).toContain("dest=");
-            expect(process.env.DAGGER_CACHE_TO).toContain("mode=max");
+            // Should export runner host
+            const exportedVars = mockCore._trackers.exportVariable.calls.map((c) => c.args[0]);
+            expect(exportedVars).toContain("_EXPERIMENTAL_DAGGER_RUNNER_HOST");
         });
 
-        it("should handle cache restore failure gracefully", async () => {
+        it("should start fresh engine if cache restore returns null", async () => {
             process.env.GITHUB_WORKFLOW = "test-flow";
             process.env.GITHUB_REPOSITORY = "test-org/test-repo";
             process.env.RUNNER_TEMP = "/tmp";
 
-            mockCacheRestore.mockImplementation(() => Promise.reject(new Error("Cache error")));
+            // Mock cache miss
+            mockCache._setRestoreResult(undefined);
 
-            // Should not throw
-            await setupDaggerCache();
+            await setupDaggerCache("v0.15.0");
 
-            // Should still configure env vars even if restore fails
-            expect(process.env.DAGGER_CACHE_FROM).toContain("type=local");
+            // Should call restoreCache
+            expect(mockCache._trackers.restoreCache.calls).toHaveLength(1);
+
+            // Should NOT call engine restore
+            expect(mockEngine.restoreEngineVolume).not.toHaveBeenCalled();
+
+            // Should still start engine
+            expect(mockEngine.startEngine).toHaveBeenCalled();
         });
     });
 
@@ -99,45 +117,51 @@ describe("cache", () => {
     // saveDaggerCache
     // -----------------------------------------------------------------------
     describe("saveDaggerCache", () => {
-        it("should save cache if directory has content", async () => {
+        it("should backup engine volume and save cache", async () => {
             process.env.GITHUB_WORKFLOW = "test-flow";
             process.env.GITHUB_REPOSITORY = "test-org/test-repo";
             process.env.RUNNER_TEMP = "/tmp";
 
-            // Create mock cache directory with content
-            const fs = await import("node:fs");
-            const cacheDir = "/tmp/dagger-build-cache";
-            fs.mkdirSync(cacheDir, { recursive: true });
-            fs.writeFileSync(`${cacheDir}/test.txt`, "test content");
+            // Mock engine exists
+            mockEngine.findEngineContainer.mockResolvedValue("test-container-id");
 
-            await saveDaggerCache();
+            // Mock archive file creation success checks
+            mockFs.existsSync.mockReturnValue(true);
 
-            expect(mockCacheSave.mock.calls.length).toBe(1);
+            await saveDaggerCache("v0.15.0");
 
-            // Cleanup
-            fs.rmSync(cacheDir, { recursive: true, force: true });
+            // Should find engine
+            expect(mockEngine.findEngineContainer).toHaveBeenCalled();
+
+            // Should stop engine
+            expect(mockEngine.stopEngine).toHaveBeenCalledWith("test-container-id");
+
+            // Should backup volume
+            expect(mockEngine.backupEngineVolume).toHaveBeenCalled();
+
+            // Should save to cache
+            expect(mockCache._trackers.saveCache.calls).toHaveLength(1);
         });
 
-        it("should handle already existing cache gracefully", async () => {
+        it("should not save cache if no engine container found", async () => {
             process.env.GITHUB_WORKFLOW = "test-flow";
             process.env.GITHUB_REPOSITORY = "test-org/test-repo";
             process.env.RUNNER_TEMP = "/tmp";
 
-            // Create mock cache directory with content
-            const fs = await import("node:fs");
-            const cacheDir = "/tmp/dagger-build-cache";
-            fs.mkdirSync(cacheDir, { recursive: true });
-            fs.writeFileSync(`${cacheDir}/test.txt`, "test content");
+            // Mock no engine
+            mockEngine.findEngineContainer.mockResolvedValue(null as unknown as string);
 
-            mockCacheSave.mockImplementation(() => {
-                throw new Error("Cache entry already exists");
-            });
+            await saveDaggerCache("v0.15.0");
 
-            // Should not throw
-            await saveDaggerCache();
+            // Should verify find called
+            expect(mockEngine.findEngineContainer).toHaveBeenCalled();
 
-            // Cleanup
-            fs.rmSync(cacheDir, { recursive: true, force: true });
+            // Should NOT stop or backup
+            expect(mockEngine.stopEngine).not.toHaveBeenCalled();
+            expect(mockEngine.backupEngineVolume).not.toHaveBeenCalled();
+
+            // Should NOT save cache
+            expect(mockCache._trackers.saveCache.calls).toHaveLength(0);
         });
     });
 });

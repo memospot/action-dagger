@@ -16,13 +16,18 @@ export async function run(): Promise<void> {
         const inputs = parseInputs();
         core.debug(`Inputs: ${JSON.stringify(inputs)}`);
 
+        // Get Dagger binary (install or restore from cache)
+        // We do this BEFORE cache setup so we know the resolved version
+        const binaryInfo = await getBinary(inputs);
+
         // Setup Dagger build cache if enabled
         if (inputs.cacheBuilds) {
-            await setupDaggerCache();
+            // Pass the resolved version to setup cache
+            await setupDaggerCache(binaryInfo.version);
         }
 
-        // Get Dagger binary (install or restore from cache)
-        const binaryInfo = await getBinary(inputs);
+        // Save resolved version for post-action cache saving
+        core.saveState("DAGGER_VERSION", binaryInfo.version);
 
         // Execute dagger command if inputs provided
         const execResult = await executeDaggerCommand(inputs, binaryInfo.path);
@@ -70,7 +75,11 @@ export async function post(): Promise<void> {
 
         if (inputs.cacheBuilds) {
             core.info("Build cache is enabled, proceeding to save...");
-            await saveDaggerCache();
+
+            // Get resolved version from state
+            const version = core.getState("DAGGER_VERSION") || inputs.version || "latest";
+
+            await saveDaggerCache(version);
             core.info("✅ Dagger build cache save completed");
         } else {
             core.info("Build cache disabled, skipping save");

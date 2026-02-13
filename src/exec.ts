@@ -33,32 +33,6 @@ export async function executeDaggerCommand(
 
     // Assemble the command arguments
     const commandArgs = assembleCommand(inputs);
-
-    // Add cache flags if cache is enabled via env vars
-    // These must be inserted AFTER any dagger flags but BEFORE the verb/subcommand
-    const cacheTo = process.env.DAGGER_CACHE_TO;
-    const cacheFrom = process.env.DAGGER_CACHE_FROM;
-
-    // Find where the verb starts (after any flags)
-    let verbIndex = 0;
-    for (let i = 0; i < commandArgs.length; i++) {
-        if (!commandArgs[i].startsWith("-")) {
-            verbIndex = i;
-            break;
-        }
-    }
-
-    // Insert cache flags before the verb
-    if (cacheFrom) {
-        commandArgs.splice(verbIndex, 0, "--import-cache", cacheFrom);
-        verbIndex += 2;
-        logDebug(`Adding --import-cache ${cacheFrom}`);
-    }
-    if (cacheTo) {
-        commandArgs.splice(verbIndex, 0, "--export-cache", cacheTo);
-        logDebug(`Adding --export-cache ${cacheTo}`);
-    }
-
     logDebug(`Command: ${commandArgs.join(" ")}`);
 
     // Set up environment

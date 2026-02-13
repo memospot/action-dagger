@@ -2,184 +2,117 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import * as cache from "@actions/cache";
 import * as core from "@actions/core";
+import * as engine from "./engine.js";
 
-const CACHE_DIR_NAME = "dagger-build-cache";
+const DAGGER_ENGINE_VOLUME = "dagger-engine-vol";
+const CACHE_ARCHIVE_NAME = "dagger-engine-state.tar";
 
 /**
- * Get the cache directory path
+ * Get the path where we store the cache archive
  */
-function getCacheDir(): string {
+function getCacheArchivePath(): string {
     const tempDir = process.env.RUNNER_TEMP || "/tmp";
-    return path.join(tempDir, CACHE_DIR_NAME);
+    return path.join(tempDir, CACHE_ARCHIVE_NAME);
 }
 
 /**
- * Generate cache key based on repository and workflow
+ * Generate cache key based on repository, branch and Dagger version
  */
-function getCacheKey(): string {
+function getCacheKey(daggerVersion: string): string {
     const workflow = process.env.GITHUB_WORKFLOW || "unknown";
     const repository = process.env.GITHUB_REPOSITORY || "unknown";
-    return `dagger-build-${repository}-${workflow}`;
+    // We include dagger version because internal state format might change
+    return `dagger-buildkit-v1-${process.platform}-${daggerVersion}-${repository}-${workflow}`;
 }
 
 /**
- * Setup Dagger build cache - restore from GitHub Actions Cache and configure Dagger
+ * Setup Dagger cache by restoring the engine state volume
  */
-export async function setupDaggerCache(): Promise<void> {
-    const cacheDir = getCacheDir();
-    const cacheKey = getCacheKey();
-    const restoreKeys = [
-        `dagger-build-${process.env.GITHUB_REPOSITORY || "unknown"}-`,
-        "dagger-build-",
-    ];
+export async function setupDaggerCache(daggerVersion: string): Promise<void> {
+    core.info("🗡️ Setting up Dagger Engine cache...");
 
-    // Ensure cache directory exists
+    const cachePath = getCacheArchivePath();
+    // Verify directory exists (it should, as getCacheArchivePath uses RUNNER_TEMP)
+    const cacheDir = path.dirname(cachePath);
     if (!fs.existsSync(cacheDir)) {
         fs.mkdirSync(cacheDir, { recursive: true });
-        core.info(`Created cache directory: ${cacheDir}`);
     }
 
-    core.info(`Attempting to restore build cache with key: ${cacheKey}`);
+    const key = getCacheKey(daggerVersion);
+    const restoreKeys = [
+        `dagger-buildkit-v1-${process.platform}-${daggerVersion}-${process.env.GITHUB_REPOSITORY}-`,
+        `dagger-buildkit-v1-${process.platform}-${daggerVersion}-`,
+    ];
 
     try {
-        const restoredKey = await cache.restoreCache([cacheDir], cacheKey, restoreKeys);
-
+        // We restore the *file* (tarball)
+        const restoredKey = await cache.restoreCache([cachePath], key, restoreKeys);
         if (restoredKey) {
-            core.info(`✓ Restored build cache from key: ${restoredKey}`);
+            core.info(`✓ Restored engine cache archive from key: ${restoredKey}`);
 
-            // Log cache size for debugging
-            const stats = getDirectorySize(cacheDir);
-            core.info(`  Cache size: ${formatBytes(stats.size)} (${stats.files} files)`);
+            // Restore volume from archive
+            core.info("📦 Hydrating Dagger Engine volume from cache...");
+            await engine.restoreEngineVolume(DAGGER_ENGINE_VOLUME, cachePath);
+            core.info("✓ Engine volume hydrated");
         } else {
-            core.info("No build cache found, starting fresh");
+            core.info("No cache found, starting with fresh engine volume");
         }
     } catch (error) {
         core.warning(`Failed to restore cache: ${error}`);
     }
 
-    // Configure Dagger to use local cache directory
-    // Using type=local instead of type=gha for reliable caching
-    const cacheFrom = `type=local,src=${cacheDir}`;
-    const cacheTo = `type=local,dest=${cacheDir},mode=max`;
-
-    core.exportVariable("DAGGER_CACHE_FROM", cacheFrom);
-    process.env.DAGGER_CACHE_FROM = cacheFrom;
-
-    core.exportVariable("DAGGER_CACHE_TO", cacheTo);
-    process.env.DAGGER_CACHE_TO = cacheTo;
-
-    // Also set legacy env var for older Dagger versions
-    core.exportVariable("_EXPERIMENTAL_DAGGER_CACHE_CONFIG", cacheTo);
-    process.env._EXPERIMENTAL_DAGGER_CACHE_CONFIG = cacheTo;
-
-    core.info(`Configured Dagger build cache:`);
-    core.info(`  Directory: ${cacheDir}`);
-    core.info(`  From: ${cacheFrom}`);
-    core.info(`  To: ${cacheTo}`);
-}
-
-/**
- * Save Dagger build cache to GitHub Actions Cache
- */
-export async function saveDaggerCache(): Promise<void> {
-    core.info("💾 Starting Dagger build cache save...");
-
-    const cacheDir = getCacheDir();
-    const cacheKey = getCacheKey();
-
-    core.info(`Cache directory: ${cacheDir}`);
-    core.info(`Cache key: ${cacheKey}`);
-
-    if (!fs.existsSync(cacheDir)) {
-        core.info("⚠️ Cache directory does not exist, nothing to save");
-        // Debug: List temp directory contents
-        const tempDir = path.dirname(cacheDir);
-        if (fs.existsSync(tempDir)) {
-            core.info(`Contents of ${tempDir}:`);
-            try {
-                const entries = fs.readdirSync(tempDir);
-                for (const entry of entries) {
-                    core.info(`  - ${entry}`);
-                }
-            } catch (e) {
-                core.info(`  (Could not read: ${e})`);
-            }
-        }
-        return;
-    }
-
-    // Check if directory has content
-    const stats = getDirectorySize(cacheDir);
-    core.info(`Cache directory stats: ${stats.files} files, ${formatBytes(stats.size)}`);
-
-    if (stats.files === 0) {
-        core.info("⚠️ Cache directory is empty, nothing to save");
-        // List directory to see what's there
-        try {
-            const entries = fs.readdirSync(cacheDir);
-            core.info(`Directory contents (${entries.length} entries):`);
-            for (const entry of entries.slice(0, 10)) {
-                const entryPath = path.join(cacheDir, entry);
-                const stat = fs.statSync(entryPath);
-                core.info(`  - ${entry} (${stat.isDirectory() ? "dir" : "file"})`);
-            }
-        } catch (e) {
-            core.info(`  (Could not read: ${e})`);
-        }
-        return;
-    }
-
-    core.info(
-        `📦 Saving build cache (${formatBytes(stats.size)}, ${stats.files} files) with key: ${cacheKey}`
-    );
-
+    // Always start the engine with our volume (empty or hydrated)
+    core.info(`🚀 Starting Dagger Engine (${daggerVersion})...`);
     try {
-        const cacheId = await cache.saveCache([cacheDir], cacheKey);
-        core.info(`✅ Saved build cache successfully (cache ID: ${cacheId})`);
+        await engine.startEngine(DAGGER_ENGINE_VOLUME, daggerVersion);
+
+        // Configure CLI to use this engine
+        const runnerHost = "docker-container://dagger-engine.dev";
+        core.exportVariable("_EXPERIMENTAL_DAGGER_RUNNER_HOST", runnerHost);
+        core.info(`✓ Dagger Engine started and configured at ${runnerHost}`);
     } catch (error) {
-        // Cache might already exist (race condition), which is fine
-        if (error instanceof Error && error.message.includes("already exists")) {
-            core.info("ℹ️ Cache entry already exists (this is normal)");
-        } else {
-            core.warning(`❌ Failed to save cache: ${error}`);
-        }
+        core.error(`Failed to start Dagger Engine: ${error}`);
+        // We don't throw here to allow fallback to CLI-spawned engine (though it won't have cache)
     }
 }
 
 /**
- * Get directory size and file count
+ * Save Dagger cache by backing up the engine state volume
  */
-function getDirectorySize(dir: string): { size: number; files: number } {
-    let size = 0;
-    let files = 0;
+export async function saveDaggerCache(daggerVersion: string): Promise<void> {
+    core.info("💾 Saving Dagger Engine cache...");
 
     try {
-        const entries = fs.readdirSync(dir, { withFileTypes: true });
-        for (const entry of entries) {
-            const fullPath = path.join(dir, entry.name);
-            if (entry.isDirectory()) {
-                const subStats = getDirectorySize(fullPath);
-                size += subStats.size;
-                files += subStats.files;
-            } else {
-                size += fs.statSync(fullPath).size;
-                files++;
-            }
+        // 1. Identify engine
+        const containerId = await engine.findEngineContainer();
+
+        if (!containerId) {
+            core.info("No Dagger Engine container found to cache.");
+            return;
         }
-    } catch {
-        // Directory might not exist or be readable
+
+        // 2. Stop engine to ensure consistent state
+        core.info(`Stopping engine container ${containerId}...`);
+        await engine.stopEngine(containerId);
+
+        // 3. Backup volume
+        const cachePath = getCacheArchivePath();
+        core.info("📦 Extracting engine volume to archive...");
+        await engine.backupEngineVolume(DAGGER_ENGINE_VOLUME, cachePath);
+
+        // 4. Save to GHA cache
+        if (fs.existsSync(cachePath)) {
+            const stats = fs.statSync(cachePath);
+            core.info(`Archive size: ${(stats.size / 1024 / 1024).toFixed(2)} MB`);
+
+            const key = getCacheKey(daggerVersion);
+            core.info(`Uploading to cache with key: ${key}`);
+            await cache.saveCache([cachePath], key);
+            core.info("✓ Cache saved");
+        } else {
+            core.warning("Archive file not created.");
+        }
+    } catch (error) {
+        core.warning(`Failed to save cache: ${error}`);
     }
-
-    return { size, files };
-}
-
-/**
- * Format bytes to human readable string
- */
-function formatBytes(bytes: number): string {
-    if (bytes === 0) return "0 B";
-    const k = 1024;
-    const sizes = ["B", "KB", "MB", "GB", "TB"];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return `${parseFloat((bytes / k ** i).toFixed(2))} ${sizes[i]}`;
 }

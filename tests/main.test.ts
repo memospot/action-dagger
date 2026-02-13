@@ -14,7 +14,24 @@ import {
 mock.module("@actions/core", () => mockCore);
 mock.module("@actions/cache", () => mockCache);
 mock.module("@actions/tool-cache", () => mockToolCache);
-mock.module("@actions/exec", () => mockExec);
+mock.module("@actions/tool-cache", () => mockToolCache);
+
+// Force module mock for exec to match engine.test.ts
+mock.module("@actions/exec", () => ({
+    getExecOutput: mockExec.getExecOutput,
+    exec: mockExec.exec,
+}));
+
+// Mock the engine module to avoid real Docker calls
+const mockEngine = {
+    findEngineContainer: mock(() => Promise.resolve("mock-container-id")),
+    stopEngine: mock(() => Promise.resolve(true)),
+    backupEngineVolume: mock(() => Promise.resolve()),
+    restoreEngineVolume: mock(() => Promise.resolve()),
+    startEngine: mock(() => Promise.resolve()),
+};
+
+mock.module("../src/engine.js", () => mockEngine);
 
 mock.module("node:fs", () => ({
     ...require("node:fs"),
@@ -33,6 +50,16 @@ import { post, run } from "../src/main.js";
 describe("main", () => {
     beforeEach(() => {
         resetAllMocks();
+        // Reset engine mocks
+        mockEngine.findEngineContainer.mockClear();
+        mockEngine.stopEngine.mockClear();
+        mockEngine.backupEngineVolume.mockClear();
+        mockEngine.restoreEngineVolume.mockClear();
+        mockEngine.startEngine.mockClear();
+        // Default: engine container exists
+        mockEngine.findEngineContainer.mockImplementation(() =>
+            Promise.resolve("mock-container-id")
+        );
     });
 
     afterEach(() => {
@@ -71,8 +98,12 @@ describe("main", () => {
 
             // Should export cache env vars
             const exportCalls = mockCore._trackers.exportVariable.calls.map((c) => c.args[0]);
-            expect(exportCalls).toContain("DAGGER_CACHE_TO");
-            expect(exportCalls).toContain("DAGGER_CACHE_FROM");
+            // Old cache vars should NOT be present
+            expect(exportCalls).not.toContain("DAGGER_CACHE_TO");
+            expect(exportCalls).not.toContain("DAGGER_CACHE_FROM");
+
+            // New runner host var should be present
+            expect(exportCalls).toContain("_EXPERIMENTAL_DAGGER_RUNNER_HOST");
 
             // Should use actions/cache restore (new implementation)
             expect(mockCache._trackers.restoreCache.calls).toHaveLength(1);
@@ -84,9 +115,10 @@ describe("main", () => {
 
             await run();
 
-            // Should NOT export cache env vars
+            // Should NOT export cache env vars or runner host
             const exportCalls = mockCore._trackers.exportVariable.calls.map((c) => c.args[0]);
             expect(exportCalls).not.toContain("DAGGER_CACHE_TO");
+            expect(exportCalls).not.toContain("_EXPERIMENTAL_DAGGER_RUNNER_HOST");
 
             expect(mockCache._trackers.restoreCache.calls).toHaveLength(0);
         });
@@ -107,14 +139,22 @@ describe("main", () => {
     // -----------------------------------------------------------------------
     // post()
     // -----------------------------------------------------------------------
+    // -----------------------------------------------------------------------
+    // post()
+    // -----------------------------------------------------------------------
     describe("post", () => {
-        it("should be a no-op even when cache-builds is enabled (handled by Dagger)", async () => {
+        it("should call saveCache when cache-builds is enabled", async () => {
             process.env.INPUT_CACHE_BUILDS = "true";
+            mockExec._setExecResult(0, "mock-container-id", "");
 
             await post();
 
-            // Should NOT call saveCache
-            expect(mockCache._trackers.saveCache.calls).toHaveLength(0);
+            // Should call saveCache logic
+            // engine.findEngineContainer -> exec docker ps -> returns mock-id
+            // engine.stopEngine -> exec docker stop
+            // engine.backupEngineVolume -> exec docker run
+            // cache.saveCache -> called
+            expect(mockCache._trackers.saveCache.calls).toHaveLength(1);
         });
 
         it("should skip save when cache-builds is disabled", async () => {
