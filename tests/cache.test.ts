@@ -124,10 +124,15 @@ describe("cache", () => {
             expect(mockCore._trackers.saveState.calls[0].args[0]).toBe("DAGGER_CACHE_KEY");
             expect(mockCore._trackers.saveState.calls[1].args[0]).toBe("DAGGER_CACHE_PATHS");
 
-            expect(mockCore._trackers.exportVariable.calls).toHaveLength(1);
-            expect(mockCore._trackers.exportVariable.calls[0].args[0]).toBe(
-                "_EXPERIMENTAL_DAGGER_CACHE_CONFIG"
-            );
+            expect(mockCore._trackers.exportVariable.calls).toHaveLength(3);
+
+            // Check for _EXPERIMENTAL_DAGGER_CACHE_CONFIG
+            const exportCalls = mockCore._trackers.exportVariable.calls;
+            const exportedVars = exportCalls.map((c) => c.args[0]);
+
+            expect(exportedVars).toContain("_EXPERIMENTAL_DAGGER_CACHE_CONFIG");
+            expect(exportedVars).toContain("DAGGER_CACHE_FROM");
+            expect(exportedVars).toContain("DAGGER_CACHE_TO");
         });
 
         it("should log hit message when cache is restored", async () => {
