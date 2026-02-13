@@ -144,6 +144,7 @@ describe("main", () => {
     // -----------------------------------------------------------------------
     describe("post", () => {
         it("should call saveCache when cache-builds is enabled", async () => {
+            process.env.INPUT_VERSION = "v0.15.0";
             process.env.INPUT_CACHE_BUILDS = "true";
             mockExec._setExecResult(0, "mock-container-id", "");
 
