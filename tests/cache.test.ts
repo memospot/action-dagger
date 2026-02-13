@@ -22,6 +22,7 @@ describe("cache", () => {
     afterEach(() => {
         delete process.env.GITHUB_WORKFLOW;
         delete process.env.GITHUB_JOB;
+        delete process.env.GITHUB_REPOSITORY;
         // cleanup process.env vars set by the code
         delete process.env._EXPERIMENTAL_DAGGER_CACHE_CONFIG;
         delete process.env.DAGGER_CACHE_FROM;
@@ -34,7 +35,7 @@ describe("cache", () => {
     describe("setupDaggerCache", () => {
         it("should export correct GHA cache environment variables", async () => {
             process.env.GITHUB_WORKFLOW = "test-flow";
-            process.env.GITHUB_JOB = "test-job";
+            process.env.GITHUB_REPOSITORY = "test-org/test-repo";
 
             await setupDaggerCache();
 
@@ -47,21 +48,21 @@ describe("cache", () => {
             expect(exportedVars).toContain("DAGGER_CACHE_FROM");
             expect(exportedVars).toContain("DAGGER_CACHE_TO");
 
-            // Verify process.env is updated
+            // Verify process.env is updated with stable scope format
             expect(process.env._EXPERIMENTAL_DAGGER_CACHE_CONFIG).toContain("type=gha");
             expect(process.env._EXPERIMENTAL_DAGGER_CACHE_CONFIG).toContain(
-                "scope=dagger-build-test-flow-test-job"
+                "scope=dagger-test-org/test-repo-test-flow"
             );
 
             expect(process.env.DAGGER_CACHE_FROM).toContain("type=gha");
             expect(process.env.DAGGER_CACHE_FROM).toContain(
-                "scope=dagger-build-test-flow-test-job"
+                "scope=dagger-test-org/test-repo-test-flow"
             );
 
             expect(process.env.DAGGER_CACHE_TO).toContain("type=gha");
             expect(process.env.DAGGER_CACHE_TO).toContain("mode=max");
             expect(process.env.DAGGER_CACHE_TO).toContain(
-                "scope=dagger-build-test-flow-test-job"
+                "scope=dagger-test-org/test-repo-test-flow"
             );
         });
     });
