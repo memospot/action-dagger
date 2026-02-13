@@ -496,6 +496,15 @@ jobs:
           echo "=== Tool cache contents ==="
           ls -la $RUNNER_TOOL_CACHE/dagger* 2>/dev/null || echo "No dagger in tool cache"
 
+      - name: "Debug GitHub Actions env vars for cache"
+        run: |
+          echo "=== GitHub Actions Cache Env Vars ==="
+          echo "ACTIONS_CACHE_URL: ${ACTIONS_CACHE_URL:-not set}"
+          echo "ACTIONS_RUNTIME_URL: ${ACTIONS_RUNTIME_URL:-not set}"
+          echo "ACTIONS_RUNTIME_TOKEN: ${ACTIONS_RUNTIME_TOKEN:+set (hidden)}"
+          echo ""
+          echo "These env vars are required for type=gha cache backend to work"
+
       - name: "Test Dagger caching - pull Alpine and add zip package"
         id: cache-test
         uses: ./
@@ -505,6 +514,7 @@ jobs:
           args: container from --address=alpine with-exec --args apk,add,--no-cache,zip stdout
           cache-binary: true
           cache-builds: true
+          dagger-flags: "--progress plain"
 
       - name: "Check outputs from first run"
         run: |
@@ -530,6 +540,7 @@ jobs:
           args: container from --address=alpine with-exec --args apk,add,--no-cache,zip stdout
           cache-binary: true
           cache-builds: true
+          dagger-flags: "--progress plain"
 
       - name: "Check outputs from second run"
         run: |
@@ -538,6 +549,11 @@ jobs:
           if [ "${{ steps.cache-test-2.outputs.cache-hit }}" != "true" ]; then
             echo "ERROR: Binary cache hit expected but got: ${{ steps.cache-test-2.outputs.cache-hit }}"
           fi
+          echo ""
+          echo "=== Timing Comparison ==="
+          echo "First run duration: ${{ steps.cache-test.outputs.duration }}"
+          echo "Second run duration: ${{ steps.cache-test-2.outputs.duration }}"
+          echo "If build cache is working, second run should be significantly faster"
 
       - name: "Check cache AFTER second run"
         run: |
