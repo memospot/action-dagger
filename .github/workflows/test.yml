@@ -483,6 +483,12 @@ jobs:
           name: dist
           path: dist/
 
+      - name: "Debug cache env vars"
+        run: |
+          echo "DAGGER_CACHE_FROM: $DAGGER_CACHE_FROM"
+          echo "DAGGER_CACHE_TO: $DAGGER_CACHE_TO"
+          echo "_EXPERIMENTAL_DAGGER_CACHE_CONFIG: $_EXPERIMENTAL_DAGGER_CACHE_CONFIG"
+
       - name: "Test Dagger caching - pull Alpine and add zip package"
         id: cache-test
         uses: ./
@@ -490,14 +496,29 @@ jobs:
           version: latest
           verb: core
           args: container from --address=alpine with-exec --args apk,add,--no-cache,zip stdout
-      - name: "Cache test (check)"
+
+      - name: "Check GitHub Actions cache"
         run: |
-          echo "Dagger cache test completed - Alpine container with zip package should now be cached"
-          echo "Check the cache entry size in the GitHub Actions cache to verify it's meaningful (>1KB)"
-          # The command succeeded if we got here, the cache entry should now exist
-          exit 0
-      - name: "Verify cache entries exist"
+          echo "Fetching cache info from GitHub API..."
+          curl -s -H "Authorization: token ${{ github.token }}" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/caches" | \
+            jq '.actions_caches[] | {id: .id, key: .key, size_in_bytes: .size_in_bytes, created_at: .created_at}' 2>/dev/null || \
+            echo "Failed to fetch cache info or no caches found"
+
+      - name: "Cache test - run again to check for cache hits"
+        id: cache-test-2
+        uses: ./
+        with:
+          version: latest
+          verb: core
+          args: container from --address=alpine with-exec --args apk,add,--no-cache,zip stdout
+
+      - name: "Debug Dagger engine"
         run: |
-          echo "Listing Dagger-related cache entries..."
-          ls -la ~/.local/share/dagger/ 2>/dev/null || echo "Dagger cache directory not found"
-          ls -la ~/.cache/dagger/ 2>/dev/null || echo "Alternative dagger cache not found"
+          echo "Checking Dagger engine status..."
+          dagger core version || echo "Dagger not available"
+          echo ""
+          echo "Checking for any dagger-related directories..."
+          find /var -name "*dagger*" -type d 2>/dev/null | head -20 || echo "No /var dagger dirs"
+          find /run -name "*dagger*" -type d 2>/dev/null | head -20 || echo "No /run dagger dirs"
+          find /tmp -name "*dagger*" -type d 2>/dev/null | head -20 || echo "No /tmp dagger dirs"
