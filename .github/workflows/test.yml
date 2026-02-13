@@ -534,6 +534,9 @@ jobs:
           else
             echo "Cache directory does not exist: $CACHE_DIR"
           fi
+          echo ""
+          echo "=== Looking for cache in other temp locations ==="
+          find /home/runner/work/_temp -name "*dagger*" -type d 2>/dev/null | head -10 || echo "No other dagger directories found"
 
       - name: "Check cache AFTER first run"
         run: |
