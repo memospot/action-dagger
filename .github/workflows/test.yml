@@ -122,7 +122,7 @@ jobs:
           fi
 
   traceurl:
-    needs: build
+    needs: output
     runs-on: "ubuntu-latest"
     steps:
       - uses: actions/checkout@v6
@@ -168,7 +168,7 @@ jobs:
           fi
 
   version:
-    needs: build
+    needs: traceurl
     runs-on: "ubuntu-latest"
     steps:
       - uses: actions/checkout@v6
@@ -268,7 +268,7 @@ jobs:
           fi
 
   call:
-    needs: build
+    needs: version
     runs-on: "ubuntu-latest"
     steps:
       - uses: actions/checkout@v6
@@ -295,7 +295,7 @@ jobs:
           fi
 
   shell:
-    needs: build
+    needs: call
     runs-on: "ubuntu-latest"
     steps:
       - uses: actions/checkout@v6
@@ -322,7 +322,7 @@ jobs:
           fi
 
   summary-path:
-    needs: build
+    needs: shell
     runs-on: "ubuntu-latest"
     steps:
       - uses: actions/checkout@v6
@@ -351,7 +351,7 @@ jobs:
           fi
 
   enable-github-summary:
-    needs: build
+    needs: summary-path
     runs-on: "ubuntu-latest"
     steps:
       - uses: actions/checkout@v6
@@ -377,7 +377,7 @@ jobs:
           fi
 
   nocall:
-    needs: build
+    needs: enable-github-summary
     runs-on: "ubuntu-latest"
     steps:
       - uses: actions/checkout@v6
@@ -393,7 +393,7 @@ jobs:
           dagger core version
 
   existing-install:
-    needs: build
+    needs: nocall
     runs-on: "ubuntu-latest"
     steps:
       - uses: actions/checkout@v6
@@ -420,7 +420,7 @@ jobs:
           fi
 
   commit-install:
-    needs: build
+    needs: existing-install
     runs-on: "ubuntu-latest"
     steps:
       - uses: actions/checkout@v6
@@ -447,7 +447,7 @@ jobs:
           fi
 
   latest-install:
-    needs: build
+    needs: commit-install
     runs-on: "ubuntu-latest"
     steps:
       - uses: actions/checkout@v6
