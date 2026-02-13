@@ -136,11 +136,27 @@ describe("cache", () => {
             // Should stop engine
             expect(mockEngine.stopEngine).toHaveBeenCalledWith("test-container-id");
 
-            // Should backup volume
+            // Should backup volume with verbose option
             expect(mockEngine.backupEngineVolume).toHaveBeenCalled();
 
             // Should save to cache
             expect(mockCache._trackers.saveCache.calls).toHaveLength(1);
+        });
+
+        it("should log archive size after backup", async () => {
+            process.env.GITHUB_WORKFLOW = "test-flow";
+            process.env.GITHUB_REPOSITORY = "test-org/test-repo";
+            process.env.RUNNER_TEMP = "/tmp";
+
+            mockEngine.findEngineContainer.mockResolvedValue("test-container-id");
+            mockFs.existsSync.mockReturnValue(true);
+            mockFs.statSync.mockReturnValue({ size: 1024 * 1024 * 256 }); // 256 MB
+
+            await saveDaggerCache("v0.15.0");
+
+            // Should log archive size
+            const infoCalls = mockCore._trackers.info.calls.map((c) => String(c.args[0]));
+            expect(infoCalls.some((msg) => msg.includes("📊 Archive size:"))).toBe(true);
         });
 
         it("should not save cache if no engine container found", async () => {
@@ -161,6 +177,42 @@ describe("cache", () => {
             expect(mockEngine.backupEngineVolume).not.toHaveBeenCalled();
 
             // Should NOT save cache
+            expect(mockCache._trackers.saveCache.calls).toHaveLength(0);
+        });
+
+        it("should soft-fail and continue on timeout", async () => {
+            process.env.GITHUB_WORKFLOW = "test-flow";
+            process.env.GITHUB_REPOSITORY = "test-org/test-repo";
+            process.env.RUNNER_TEMP = "/tmp";
+
+            mockEngine.findEngineContainer.mockResolvedValue("test-container-id");
+            mockFs.existsSync.mockReturnValue(true);
+
+            // Mock backup to take longer than timeout
+            // We use a small timeout for the test (e.g. 1ms), so 50ms delay is enough
+            mockEngine.backupEngineVolume.mockImplementation(async () => {
+                await new Promise((resolve) => setTimeout(resolve, 50));
+            });
+
+            // Call with very short timeout: 0.00002 mins ~ 1.2ms
+            // But withTimeout has min 1ms granularity?
+            // Let's use a slightly larger timeout and larger delay to be safe and avoid flakes.
+            // 0.001 min = 60ms. Delay 150ms.
+            const timeoutMinutes = 0.0005; // 30ms
+
+            await saveDaggerCache("v0.15.0", "v2", timeoutMinutes);
+
+            // Should warn about timeout
+            const warningCalls = mockCore._trackers.warning.calls.map((c) => String(c.args[0]));
+            expect(warningCalls.some((msg) => msg.includes("timed out"))).toBe(true);
+
+            // Should info about continuing
+            const infoCalls = mockCore._trackers.info.calls.map((c) => String(c.args[0]));
+            expect(infoCalls.some((msg) => msg.includes("Continuing without cache save"))).toBe(
+                true
+            );
+
+            // Should NOT save cache (because backup didn't complete / was skipped)
             expect(mockCache._trackers.saveCache.calls).toHaveLength(0);
         });
     });

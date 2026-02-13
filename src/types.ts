@@ -10,6 +10,8 @@ export interface ActionInputs {
     cacheBinary: boolean;
     /** Cache version for cache invalidation */
     cacheVersion: string;
+    /** Timeout in minutes for cache operations */
+    cacheTimeoutMinutes: number;
     commit: string;
     daggerFlags: string;
     verb: string;

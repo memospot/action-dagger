@@ -39,12 +39,15 @@ export async function stopEngine(containerId: string): Promise<boolean> {
  */
 export async function backupEngineVolume(
     volumeName: string,
-    archivePath: string
+    archivePath: string,
+    options?: { verbose?: boolean }
 ): Promise<void> {
     // We use a helper alpine container to mount the volume and tar it
     // effectively: tar -cf /backup/cache.tar -C /data .
     const backupDir = parseDir(archivePath);
     const backupFile = parseFile(archivePath);
+
+    const isVerbose = options?.verbose ?? false;
 
     const args = [
         "run",
@@ -55,14 +58,12 @@ export async function backupEngineVolume(
         `${backupDir}:/backup`,
         "alpine",
         "tar",
-        "cf",
-        `/backup/${backupFile}`,
-        "-C",
-        "/data",
-        ".",
+        ...(isVerbose
+            ? ["cvf", `--backup/${backupFile}`, "--totals", "-C", "/data", "."]
+            : ["cf", `/backup/${backupFile}`, "-C", "/data", "."]),
     ];
 
-    await exec.exec("docker", args, { silent: true });
+    await exec.exec("docker", args, { silent: !isVerbose });
 }
 
 /**

@@ -30,4 +30,47 @@ describe("Engine Lifecycle", () => {
         expect(typeof engine.restoreEngineVolume).toBe("function");
         expect(typeof engine.startEngine).toBe("function");
     });
+
+    describe("backupEngineVolume", () => {
+        it("should use normal tar command by default", async () => {
+            // Bypass mock/cache by appending query param
+            // @ts-expect-error
+            const engine = await import(`../src/engine.js?bust=${Date.now()}-1`);
+            await engine.backupEngineVolume("vol-name", "/tmp/archive.tar");
+
+            // Verify exec was called with correct arguments
+            const calls = mockExec._trackers.exec.calls;
+            expect(calls.length).toBeGreaterThan(0);
+
+            const args = calls[0].args[1] as string[];
+            const options = calls[0].args[2] as { silent?: boolean };
+
+            // Should contain "cf" (create file) but NOT "v" (verbose)
+            expect(args).toContain("cf");
+            expect(args).not.toContain("cvf");
+
+            // Should be silent by default (!verbose)
+            expect(options?.silent).toBe(true);
+        });
+
+        it("should use verbose tar command when verbose option is true", async () => {
+            // @ts-expect-error
+            const engine = await import(`../src/engine.js?bust=${Date.now()}-2`);
+            await engine.backupEngineVolume("vol-name", "/tmp/archive.tar", { verbose: true });
+
+            // Verify exec was called with correct arguments
+            const calls = mockExec._trackers.exec.calls;
+            expect(calls.length).toBeGreaterThan(0);
+
+            const args = calls[0].args[1] as string[];
+            const options = calls[0].args[2] as { silent?: boolean };
+
+            // Should contain "cvf" (create verbose file) and "--totals"
+            expect(args).toContain("cvf");
+            expect(args).toContain("--totals");
+
+            // Should NOT be silent
+            expect(options?.silent).toBe(false);
+        });
+    });
 });

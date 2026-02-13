@@ -81,7 +81,7 @@ export async function post(): Promise<void> {
             const version = core.getState("DAGGER_VERSION") || inputs.version || "latest";
             const cacheVersion = core.getState("CACHE_VERSION") || inputs.cacheVersion || "v2";
 
-            await saveDaggerCache(version, cacheVersion);
+            await saveDaggerCache(version, cacheVersion, inputs.cacheTimeoutMinutes);
             core.info("✅ Dagger build cache save completed");
         } else {
             core.info("Build cache disabled, skipping save");

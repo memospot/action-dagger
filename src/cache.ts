@@ -3,6 +3,7 @@ import * as path from "node:path";
 import * as cache from "@actions/cache";
 import * as core from "@actions/core";
 import * as engine from "./engine.js";
+import { withTimeout } from "./utils.js";
 
 const DAGGER_ENGINE_VOLUME = "dagger-engine-vol";
 const CACHE_ARCHIVE_NAME = "dagger-engine-state.tar";
@@ -74,6 +75,7 @@ export async function setupDaggerCache(
         // Configure CLI to use this engine
         const runnerHost = "docker-container://dagger-engine.dev";
         core.exportVariable("_EXPERIMENTAL_DAGGER_RUNNER_HOST", runnerHost);
+        core.exportVariable("DAGGER_RUNNER_HOST", runnerHost); // for future compatibility.
         core.info(`✓ Dagger Engine started and configured at ${runnerHost}`);
     } catch (error) {
         core.error(`Failed to start Dagger Engine: ${error}`);
@@ -86,7 +88,8 @@ export async function setupDaggerCache(
  */
 export async function saveDaggerCache(
     daggerVersion: string,
-    cacheVersion: string = DEFAULT_CACHE_VERSION
+    cacheVersion: string = DEFAULT_CACHE_VERSION,
+    timeoutMinutes: number = 10
 ): Promise<void> {
     core.info("💾 Saving Dagger Engine cache...");
 
@@ -103,15 +106,29 @@ export async function saveDaggerCache(
         core.info(`Stopping engine container ${containerId}...`);
         await engine.stopEngine(containerId);
 
-        // 3. Backup volume
+        // 3. Backup volume with optional timeout
         const cachePath = getCacheArchivePath();
         core.info("📦 Extracting engine volume to archive...");
-        await engine.backupEngineVolume(DAGGER_ENGINE_VOLUME, cachePath);
+
+        if (timeoutMinutes > 0) {
+            const timeoutMs = timeoutMinutes * 60 * 1000;
+            await withTimeout(
+                engine.backupEngineVolume(DAGGER_ENGINE_VOLUME, cachePath, {
+                    verbose: core.isDebug(),
+                }),
+                timeoutMs,
+                "Cache backup"
+            );
+        } else {
+            await engine.backupEngineVolume(DAGGER_ENGINE_VOLUME, cachePath, {
+                verbose: core.isDebug(),
+            });
+        }
 
         // 4. Save to GHA cache
         if (fs.existsSync(cachePath)) {
             const stats = fs.statSync(cachePath);
-            core.info(`Archive size: ${(stats.size / 1024 / 1024).toFixed(2)} MB`);
+            core.info(`📊 Archive size: ${(stats.size / 1024 / 1024).toFixed(2)} MB`);
 
             const key = getCacheKey(daggerVersion, cacheVersion);
             core.info(`Uploading to cache with key: ${key}`);
@@ -121,6 +138,11 @@ export async function saveDaggerCache(
             core.warning("Archive file not created.");
         }
     } catch (error) {
+        if (error instanceof Error && error.message.includes("timed out")) {
+            core.warning(`⚠️ ${error.message} - skipping to avoid blocking workflow`);
+            core.info("✅ Continuing without cache save");
+            return;
+        }
         core.warning(`Failed to save cache: ${error}`);
     }
 }

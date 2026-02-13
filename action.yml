@@ -25,6 +25,11 @@ inputs:
     description: "Cache version for build cache invalidation. Change this to invalidate existing caches"
     required: false
     default: "v2"
+  cache-timeout-minutes:
+    description: "Timeout in minutes for cache save/restore operations. Set to 0 to disable timeout."
+    required: false
+    default: "10"
+
 
   commit:
     description: "Dagger Dev Commit (deprecated)"

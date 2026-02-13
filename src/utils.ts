@@ -9,6 +9,7 @@ export function parseInputs(): ActionInputs {
     const cacheBuilds = core.getBooleanInput("cache-builds");
     const cacheBinary = core.getBooleanInput("cache-binary");
     const cacheVersion = core.getInput("cache-version") || "v2";
+    const cacheTimeoutMinutes = parseInt(core.getInput("cache-timeout-minutes") || "10", 10);
 
     // Legacy inputs
     const commit = core.getInput("commit");
@@ -28,6 +29,7 @@ export function parseInputs(): ActionInputs {
         cacheBuilds,
         cacheBinary,
         cacheVersion,
+        cacheTimeoutMinutes,
         commit,
         daggerFlags,
         verb,
@@ -79,4 +81,23 @@ export function logWarning(message: string): void {
  */
 export function logError(message: string): void {
     core.error(message);
+}
+
+/**
+ * Wrap a promise with a timeout
+ */
+export async function withTimeout<T>(
+    promise: Promise<T>,
+    timeoutMs: number,
+    operationName: string
+): Promise<T> {
+    return Promise.race([
+        promise,
+        new Promise<T>((_, reject) =>
+            setTimeout(
+                () => reject(new Error(`${operationName} timed out after ${timeoutMs}ms`)),
+                timeoutMs
+            )
+        ),
+    ]);
 }
