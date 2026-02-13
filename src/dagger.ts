@@ -210,12 +210,7 @@ export function getDownloadUrls(
     const archiveExt = platform.platform === "windows" ? "zip" : "tar.gz";
 
     if (isCommit) {
-        // Commit downloads: dl.dagger.io/dagger/main/<commit>/dagger_v<version>_<platform>_<arch>.<ext>
-        // Use a generic name format for commit builds as we might not know the exact version string
-        // inside the tarball, but the filename usually follows convention.
-        // Actually, for commits, the filename on dl.dagger.io usually includes the commit hash or similar.
-        // Let's rely on the way the old action did it or standard Dagger distribution.
-        // https://dl.dagger.io/dagger/main/${commit}/dagger_${platform}_${arch}.${archiveExt}
+        // Commit builds follow the pattern: dl.dagger.io/dagger/main/<commit>/dagger_<commit>_<platform>_<arch>.<ext>
         const filename = `dagger_${version.replace(/^v/, "")}_${platform.platform}_${platform.downloadArch}.${archiveExt}`;
         return {
             primary: `${DAGGER_DOWNLOAD_URL}/main/${version}/${filename}`,

@@ -6,6 +6,7 @@ import * as engine from "./engine.js";
 
 const DAGGER_ENGINE_VOLUME = "dagger-engine-vol";
 const CACHE_ARCHIVE_NAME = "dagger-engine-state.tar";
+const DEFAULT_CACHE_VERSION = "v2";
 
 /**
  * Get the path where we store the cache archive
@@ -16,19 +17,23 @@ function getCacheArchivePath(): string {
 }
 
 /**
- * Generate cache key based on repository, branch and Dagger version
+ * Generate cache key based on repository, branch, Dagger version, and cache version
  */
-function getCacheKey(daggerVersion: string): string {
+function getCacheKey(daggerVersion: string, cacheVersion: string): string {
     const workflow = process.env.GITHUB_WORKFLOW || "unknown";
     const repository = process.env.GITHUB_REPOSITORY || "unknown";
     // We include dagger version because internal state format might change
-    return `dagger-buildkit-v1-${process.platform}-${daggerVersion}-${repository}-${workflow}`;
+    // cacheVersion allows users to invalidate caches when needed
+    return `dagger-buildkit-${cacheVersion}-${process.platform}-${daggerVersion}-${repository}-${workflow}`;
 }
 
 /**
  * Setup Dagger cache by restoring the engine state volume
  */
-export async function setupDaggerCache(daggerVersion: string): Promise<void> {
+export async function setupDaggerCache(
+    daggerVersion: string,
+    cacheVersion: string = DEFAULT_CACHE_VERSION
+): Promise<void> {
     core.info("🗡️ Setting up Dagger Engine cache...");
 
     const cachePath = getCacheArchivePath();
@@ -38,10 +43,10 @@ export async function setupDaggerCache(daggerVersion: string): Promise<void> {
         fs.mkdirSync(cacheDir, { recursive: true });
     }
 
-    const key = getCacheKey(daggerVersion);
+    const key = getCacheKey(daggerVersion, cacheVersion);
     const restoreKeys = [
-        `dagger-buildkit-v1-${process.platform}-${daggerVersion}-${process.env.GITHUB_REPOSITORY}-`,
-        `dagger-buildkit-v1-${process.platform}-${daggerVersion}-`,
+        `dagger-buildkit-${cacheVersion}-${process.platform}-${daggerVersion}-${process.env.GITHUB_REPOSITORY}-`,
+        `dagger-buildkit-${cacheVersion}-${process.platform}-${daggerVersion}-`,
     ];
 
     try {
@@ -79,7 +84,10 @@ export async function setupDaggerCache(daggerVersion: string): Promise<void> {
 /**
  * Save Dagger cache by backing up the engine state volume
  */
-export async function saveDaggerCache(daggerVersion: string): Promise<void> {
+export async function saveDaggerCache(
+    daggerVersion: string,
+    cacheVersion: string = DEFAULT_CACHE_VERSION
+): Promise<void> {
     core.info("💾 Saving Dagger Engine cache...");
 
     try {
@@ -105,7 +113,7 @@ export async function saveDaggerCache(daggerVersion: string): Promise<void> {
             const stats = fs.statSync(cachePath);
             core.info(`Archive size: ${(stats.size / 1024 / 1024).toFixed(2)} MB`);
 
-            const key = getCacheKey(daggerVersion);
+            const key = getCacheKey(daggerVersion, cacheVersion);
             core.info(`Uploading to cache with key: ${key}`);
             await cache.saveCache([cachePath], key);
             core.info("✓ Cache saved");

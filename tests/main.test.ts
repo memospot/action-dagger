@@ -8,21 +8,9 @@ import {
 } from "./mocks/actions.js";
 
 // ---------------------------------------------------------------------------
-// Module mocks
+// Setup engine mock BEFORE importing cache/main modules
 // ---------------------------------------------------------------------------
 
-mock.module("@actions/core", () => mockCore);
-mock.module("@actions/cache", () => mockCache);
-mock.module("@actions/tool-cache", () => mockToolCache);
-mock.module("@actions/tool-cache", () => mockToolCache);
-
-// Force module mock for exec to match engine.test.ts
-mock.module("@actions/exec", () => ({
-    getExecOutput: mockExec.getExecOutput,
-    exec: mockExec.exec,
-}));
-
-// Mock the engine module to avoid real Docker calls
 const mockEngine = {
     findEngineContainer: mock(() => Promise.resolve("mock-container-id")),
     stopEngine: mock(() => Promise.resolve(true)),
@@ -31,8 +19,15 @@ const mockEngine = {
     startEngine: mock(() => Promise.resolve()),
 };
 
+// Mock all modules before any imports
+mock.module("@actions/core", () => mockCore);
+mock.module("@actions/cache", () => mockCache);
+mock.module("@actions/tool-cache", () => mockToolCache);
+mock.module("@actions/exec", () => ({
+    getExecOutput: mockExec.getExecOutput,
+    exec: mockExec.exec,
+}));
 mock.module("../src/engine.js", () => mockEngine);
-
 mock.module("node:fs", () => ({
     ...require("node:fs"),
     existsSync: () => true,
@@ -40,7 +35,7 @@ mock.module("node:fs", () => ({
     chmodSync: () => undefined,
 }));
 
-// Import AFTER mocks
+// Import AFTER all mocks are registered
 import { post, run } from "../src/main.js";
 
 // ---------------------------------------------------------------------------
@@ -50,13 +45,12 @@ import { post, run } from "../src/main.js";
 describe("main", () => {
     beforeEach(() => {
         resetAllMocks();
-        // Reset engine mocks
+        // Reset engine mocks to default behavior
         mockEngine.findEngineContainer.mockClear();
         mockEngine.stopEngine.mockClear();
         mockEngine.backupEngineVolume.mockClear();
         mockEngine.restoreEngineVolume.mockClear();
         mockEngine.startEngine.mockClear();
-        // Default: engine container exists
         mockEngine.findEngineContainer.mockImplementation(() =>
             Promise.resolve("mock-container-id")
         );
@@ -139,13 +133,11 @@ describe("main", () => {
     // -----------------------------------------------------------------------
     // post()
     // -----------------------------------------------------------------------
-    // -----------------------------------------------------------------------
-    // post()
-    // -----------------------------------------------------------------------
     describe("post", () => {
         it("should call saveCache when cache-builds is enabled", async () => {
             process.env.INPUT_VERSION = "v0.15.0";
             process.env.INPUT_CACHE_BUILDS = "true";
+            process.env.INPUT_CACHE_VERSION = "v2";
 
             // Ensure engine mock returns a container ID
             mockEngine.findEngineContainer.mockImplementation(() =>
@@ -224,6 +216,7 @@ describe("utils", () => {
             process.env.INPUT_VERSION = "v0.15.0";
             process.env.INPUT_CACHE_BUILDS = "true";
             process.env.INPUT_CACHE_BINARY = "false";
+            process.env.INPUT_CACHE_VERSION = "v3";
             process.env.INPUT_WORKDIR = "./my-app";
 
             const { parseInputs } = await import("../src/utils.js");
@@ -232,6 +225,7 @@ describe("utils", () => {
             expect(inputs.version).toBe("v0.15.0");
             expect(inputs.cacheBuilds).toBe(true);
             expect(inputs.cacheBinary).toBe(false);
+            expect(inputs.cacheVersion).toBe("v3");
             expect(inputs.workdir).toBe("./my-app");
         });
 

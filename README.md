@@ -64,6 +64,7 @@ An alternate GitHub Action for running [Dagger](https://dagger.io/) with better 
 | `version`                | Dagger CLI version (semver or 'latest')               | false    | 'latest'           |
 | `cache-builds`           | Enable Dagger build cache persistence                 | false    | true               |
 | `cache-binary`           | Cache Dagger binary to avoid re-downloading           | false    | true               |
+| `cache-version`          | Cache version for invalidation (change to clear cache)  | false    | 'v2'               |
 | `dagger-flags`           | Dagger CLI Flags                                      | false    | '--progress plain' |
 | `verb`                   | CLI verb (call, run, download, up, functions, shell)  | false    | 'call'             |
 | `workdir`                | Working directory for Dagger CLI                      | false    | '.'                |
@@ -96,14 +97,31 @@ The Dagger binary is cached using GitHub Actions tool-cache:
 
 ### Build Cache
 
-Dagger build cache is persisted to GitHub Actions Cache:
-- **Cache key**: `dagger-build-<workflow>-<job>-<timestamp>`
+Dagger build cache persists the engine state volume to GitHub Actions Cache:
+- **Cache key**: `dagger-buildkit-<version>-<platform>-<dagger-version>-<repo>-<workflow>`
 - **Restore keys**:
-  - `dagger-build-<workflow>-<job>-`
-  - `dagger-build-<workflow>-`
-  - `dagger-build-`
+  - `dagger-buildkit-<version>-<platform>-<dagger-version>-<repo>-`
+  - `dagger-buildkit-<version>-<platform>-<dagger-version>-`
 - Cache is saved even on workflow failure for partial progress
-- Configured via `_EXPERIMENTAL_DAGGER_CACHE_CONFIG` environment variable
+- Uses `_EXPERIMENTAL_DAGGER_RUNNER_HOST` to connect to cached engine
+
+#### Cache Invalidation
+
+Use `cache-version` to invalidate caches when needed:
+
+```yaml
+- name: Run Dagger with cache invalidation
+  uses: memospot/action-dagger@v1
+  with:
+    cache-version: 'v3'  # Bump to force fresh cache
+    module: github.com/shykes/daggerverse/hello
+    call: hello
+```
+
+Common reasons to change cache version:
+- Corrupted cache data
+- Dagger engine state format changes
+- Debugging cache-related issues
 
 ## Migration Guide
 

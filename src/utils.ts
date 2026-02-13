@@ -8,6 +8,7 @@ export function parseInputs(): ActionInputs {
     const version = core.getInput("version") || "latest";
     const cacheBuilds = core.getBooleanInput("cache-builds");
     const cacheBinary = core.getBooleanInput("cache-binary");
+    const cacheVersion = core.getInput("cache-version") || "v2";
 
     // Legacy inputs
     const commit = core.getInput("commit");
@@ -26,6 +27,7 @@ export function parseInputs(): ActionInputs {
         version,
         cacheBuilds,
         cacheBinary,
+        cacheVersion,
         commit,
         daggerFlags,
         verb,

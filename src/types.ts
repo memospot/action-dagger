@@ -8,7 +8,8 @@ export interface ActionInputs {
     cacheBuilds: boolean;
     /** Cache Dagger binary to avoid re-downloading */
     cacheBinary: boolean;
-    // Legacy inputs
+    /** Cache version for cache invalidation */
+    cacheVersion: string;
     commit: string;
     daggerFlags: string;
     verb: string;
