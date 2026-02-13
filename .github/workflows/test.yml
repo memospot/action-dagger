@@ -522,6 +522,19 @@ jobs:
           echo "Binary path: ${{ steps.cache-test.outputs.binary-path }}"
           echo "Dagger version: ${{ steps.cache-test.outputs.dagger-version }}"
 
+      - name: "Check cache directory contents after first run"
+        run: |
+          echo "=== Cache directory contents ==="
+          CACHE_DIR="/home/runner/work/_temp/dagger-build-cache"
+          if [ -d "$CACHE_DIR" ]; then
+            echo "Cache directory exists: $CACHE_DIR"
+            du -sh "$CACHE_DIR" 2>/dev/null || echo "Could not get size"
+            find "$CACHE_DIR" -type f | head -20 || echo "No files found"
+            ls -la "$CACHE_DIR" 2>/dev/null || echo "Could not list directory"
+          else
+            echo "Cache directory does not exist: $CACHE_DIR"
+          fi
+
       - name: "Check cache AFTER first run"
         run: |
           echo "=== Cache entries after first run ==="
@@ -542,6 +555,18 @@ jobs:
           cache-builds: true
           dagger-flags: "--progress plain"
 
+      - name: "Check cache directory contents after second run"
+        run: |
+          echo "=== Cache directory contents (after 2nd run) ==="
+          CACHE_DIR="/home/runner/work/_temp/dagger-build-cache"
+          if [ -d "$CACHE_DIR" ]; then
+            echo "Cache directory exists: $CACHE_DIR"
+            du -sh "$CACHE_DIR" 2>/dev/null || echo "Could not get size"
+            find "$CACHE_DIR" -type f | wc -l || echo "Could not count files"
+          else
+            echo "Cache directory does not exist: $CACHE_DIR"
+          fi
+
       - name: "Check outputs from second run"
         run: |
           echo "Cache hit: ${{ steps.cache-test-2.outputs.cache-hit }}"
@@ -551,9 +576,9 @@ jobs:
           fi
           echo ""
           echo "=== Timing Comparison ==="
-          echo "First run duration: ${{ steps.cache-test.outputs.duration }}"
-          echo "Second run duration: ${{ steps.cache-test-2.outputs.duration }}"
-          echo "If build cache is working, second run should be significantly faster"
+          echo "First run should have created and saved the cache"
+          echo "Second run should have restored the cache from GitHub Actions"
+          echo "Note: Build cache uses type=local, so timing comparison shows if Dagger used the cache"
 
       - name: "Check cache AFTER second run"
         run: |

@@ -62,13 +62,16 @@ export async function run(): Promise<void> {
  */
 export async function post(): Promise<void> {
     try {
-        core.info("💾 Saving Dagger build cache");
+        core.info("💾 Running post-action: Saving Dagger build cache");
+        core.info(`STATE_isPost env var: ${process.env.STATE_isPost || "not set"}`);
 
         const inputs = parseInputs();
+        core.info(`cache-builds input: ${inputs.cacheBuilds}`);
 
         if (inputs.cacheBuilds) {
+            core.info("Build cache is enabled, proceeding to save...");
             await saveDaggerCache();
-            core.info("✅ Dagger build cache saved");
+            core.info("✅ Dagger build cache save completed");
         } else {
             core.info("Build cache disabled, skipping save");
         }
@@ -82,12 +85,15 @@ export async function post(): Promise<void> {
 // Run main if this file is executed directly
 if (require.main === module) {
     const isPost = process.env.STATE_isPost === "true";
+    core.info(`Action phase: ${isPost ? "post" : "main"}`);
+    core.info(`STATE_isPost: ${process.env.STATE_isPost || "not set"}`);
 
     if (isPost) {
         post();
     } else {
         // Mark that we'll run post
         core.saveState("isPost", "true");
+        core.info("Marked for post-action execution");
         run();
     }
 }

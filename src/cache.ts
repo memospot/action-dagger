@@ -82,34 +82,66 @@ export async function setupDaggerCache(): Promise<void> {
  * Save Dagger build cache to GitHub Actions Cache
  */
 export async function saveDaggerCache(): Promise<void> {
+    core.info("💾 Starting Dagger build cache save...");
+
     const cacheDir = getCacheDir();
     const cacheKey = getCacheKey();
 
+    core.info(`Cache directory: ${cacheDir}`);
+    core.info(`Cache key: ${cacheKey}`);
+
     if (!fs.existsSync(cacheDir)) {
-        core.info("Cache directory does not exist, nothing to save");
+        core.info("⚠️ Cache directory does not exist, nothing to save");
+        // Debug: List temp directory contents
+        const tempDir = path.dirname(cacheDir);
+        if (fs.existsSync(tempDir)) {
+            core.info(`Contents of ${tempDir}:`);
+            try {
+                const entries = fs.readdirSync(tempDir);
+                for (const entry of entries) {
+                    core.info(`  - ${entry}`);
+                }
+            } catch (e) {
+                core.info(`  (Could not read: ${e})`);
+            }
+        }
         return;
     }
 
     // Check if directory has content
     const stats = getDirectorySize(cacheDir);
+    core.info(`Cache directory stats: ${stats.files} files, ${formatBytes(stats.size)}`);
+
     if (stats.files === 0) {
-        core.info("Cache directory is empty, nothing to save");
+        core.info("⚠️ Cache directory is empty, nothing to save");
+        // List directory to see what's there
+        try {
+            const entries = fs.readdirSync(cacheDir);
+            core.info(`Directory contents (${entries.length} entries):`);
+            for (const entry of entries.slice(0, 10)) {
+                const entryPath = path.join(cacheDir, entry);
+                const stat = fs.statSync(entryPath);
+                core.info(`  - ${entry} (${stat.isDirectory() ? "dir" : "file"})`);
+            }
+        } catch (e) {
+            core.info(`  (Could not read: ${e})`);
+        }
         return;
     }
 
     core.info(
-        `Saving build cache (${formatBytes(stats.size)}, ${stats.files} files) with key: ${cacheKey}`
+        `📦 Saving build cache (${formatBytes(stats.size)}, ${stats.files} files) with key: ${cacheKey}`
     );
 
     try {
-        await cache.saveCache([cacheDir], cacheKey);
-        core.info(`✓ Saved build cache successfully`);
+        const cacheId = await cache.saveCache([cacheDir], cacheKey);
+        core.info(`✅ Saved build cache successfully (cache ID: ${cacheId})`);
     } catch (error) {
         // Cache might already exist (race condition), which is fine
         if (error instanceof Error && error.message.includes("already exists")) {
-            core.info("Cache entry already exists (this is normal)");
+            core.info("ℹ️ Cache entry already exists (this is normal)");
         } else {
-            core.warning(`Failed to save cache: ${error}`);
+            core.warning(`❌ Failed to save cache: ${error}`);
         }
     }
 }
