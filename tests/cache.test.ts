@@ -5,6 +5,14 @@ import { mockCore, resetAllMocks } from "./mocks/actions.js";
 // Module mocks — must be registered before importing the module under test.
 // ---------------------------------------------------------------------------
 
+const mockCacheRestore = mock(() => Promise.resolve(undefined));
+const mockCacheSave = mock(() => Promise.resolve(1));
+
+mock.module("@actions/cache", () => ({
+    restoreCache: mockCacheRestore,
+    saveCache: mockCacheSave,
+}));
+
 mock.module("@actions/core", () => mockCore);
 
 // Import the module under test AFTER mocks are registered.
@@ -17,12 +25,15 @@ import { saveDaggerCache, setupDaggerCache } from "../src/cache.js";
 describe("cache", () => {
     beforeEach(() => {
         resetAllMocks();
+        mockCacheRestore.mockClear();
+        mockCacheSave.mockClear();
     });
 
     afterEach(() => {
         delete process.env.GITHUB_WORKFLOW;
         delete process.env.GITHUB_JOB;
         delete process.env.GITHUB_REPOSITORY;
+        delete process.env.RUNNER_TEMP;
         // cleanup process.env vars set by the code
         delete process.env._EXPERIMENTAL_DAGGER_CACHE_CONFIG;
         delete process.env.DAGGER_CACHE_FROM;
@@ -33,12 +44,24 @@ describe("cache", () => {
     // setupDaggerCache
     // -----------------------------------------------------------------------
     describe("setupDaggerCache", () => {
-        it("should export correct GHA cache environment variables", async () => {
+        it("should attempt to restore cache and export local cache env vars", async () => {
             process.env.GITHUB_WORKFLOW = "test-flow";
             process.env.GITHUB_REPOSITORY = "test-org/test-repo";
+            process.env.RUNNER_TEMP = "/tmp";
+
+            mockCacheRestore.mockImplementation(() =>
+                Promise.resolve("dagger-build-test-org/test-repo-test-flow")
+            );
 
             await setupDaggerCache();
 
+            // Should call restoreCache
+            expect(mockCacheRestore.mock.calls.length).toBe(1);
+            const restoreCall = mockCacheRestore.mock.calls[0];
+            expect(restoreCall[0][0]).toContain("dagger-build-cache");
+            expect(restoreCall[1]).toBe("dagger-build-test-org/test-repo-test-flow");
+
+            // Should export 3 environment variables
             expect(mockCore._trackers.exportVariable.calls).toHaveLength(3);
 
             const exportCalls = mockCore._trackers.exportVariable.calls;
@@ -48,22 +71,27 @@ describe("cache", () => {
             expect(exportedVars).toContain("DAGGER_CACHE_FROM");
             expect(exportedVars).toContain("DAGGER_CACHE_TO");
 
-            // Verify process.env is updated with stable scope format
-            expect(process.env._EXPERIMENTAL_DAGGER_CACHE_CONFIG).toContain("type=gha");
-            expect(process.env._EXPERIMENTAL_DAGGER_CACHE_CONFIG).toContain(
-                "scope=dagger-test-org/test-repo-test-flow"
-            );
+            // Verify process.env is updated with type=local instead of type=gha
+            expect(process.env.DAGGER_CACHE_FROM).toContain("type=local");
+            expect(process.env.DAGGER_CACHE_FROM).toContain("src=");
 
-            expect(process.env.DAGGER_CACHE_FROM).toContain("type=gha");
-            expect(process.env.DAGGER_CACHE_FROM).toContain(
-                "scope=dagger-test-org/test-repo-test-flow"
-            );
-
-            expect(process.env.DAGGER_CACHE_TO).toContain("type=gha");
+            expect(process.env.DAGGER_CACHE_TO).toContain("type=local");
+            expect(process.env.DAGGER_CACHE_TO).toContain("dest=");
             expect(process.env.DAGGER_CACHE_TO).toContain("mode=max");
-            expect(process.env.DAGGER_CACHE_TO).toContain(
-                "scope=dagger-test-org/test-repo-test-flow"
-            );
+        });
+
+        it("should handle cache restore failure gracefully", async () => {
+            process.env.GITHUB_WORKFLOW = "test-flow";
+            process.env.GITHUB_REPOSITORY = "test-org/test-repo";
+            process.env.RUNNER_TEMP = "/tmp";
+
+            mockCacheRestore.mockImplementation(() => Promise.reject(new Error("Cache error")));
+
+            // Should not throw
+            await setupDaggerCache();
+
+            // Should still configure env vars even if restore fails
+            expect(process.env.DAGGER_CACHE_FROM).toContain("type=local");
         });
     });
 
@@ -71,10 +99,45 @@ describe("cache", () => {
     // saveDaggerCache
     // -----------------------------------------------------------------------
     describe("saveDaggerCache", () => {
-        it("should be a no-op", async () => {
+        it("should save cache if directory has content", async () => {
+            process.env.GITHUB_WORKFLOW = "test-flow";
+            process.env.GITHUB_REPOSITORY = "test-org/test-repo";
+            process.env.RUNNER_TEMP = "/tmp";
+
+            // Create mock cache directory with content
+            const fs = await import("node:fs");
+            const cacheDir = "/tmp/dagger-build-cache";
+            fs.mkdirSync(cacheDir, { recursive: true });
+            fs.writeFileSync(`${cacheDir}/test.txt`, "test content");
+
             await saveDaggerCache();
-            // Should not throw and essentially do nothing
-            expect(true).toBe(true);
+
+            expect(mockCacheSave.mock.calls.length).toBe(1);
+
+            // Cleanup
+            fs.rmSync(cacheDir, { recursive: true, force: true });
+        });
+
+        it("should handle already existing cache gracefully", async () => {
+            process.env.GITHUB_WORKFLOW = "test-flow";
+            process.env.GITHUB_REPOSITORY = "test-org/test-repo";
+            process.env.RUNNER_TEMP = "/tmp";
+
+            // Create mock cache directory with content
+            const fs = await import("node:fs");
+            const cacheDir = "/tmp/dagger-build-cache";
+            fs.mkdirSync(cacheDir, { recursive: true });
+            fs.writeFileSync(`${cacheDir}/test.txt`, "test content");
+
+            mockCacheSave.mockImplementation(() => {
+                throw new Error("Cache entry already exists");
+            });
+
+            // Should not throw
+            await saveDaggerCache();
+
+            // Cleanup
+            fs.rmSync(cacheDir, { recursive: true, force: true });
         });
     });
 });

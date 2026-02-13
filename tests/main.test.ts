@@ -74,8 +74,8 @@ describe("main", () => {
             expect(exportCalls).toContain("DAGGER_CACHE_TO");
             expect(exportCalls).toContain("DAGGER_CACHE_FROM");
 
-            // Should NOT use actions/cache restore
-            expect(mockCache._trackers.restoreCache.calls).toHaveLength(0);
+            // Should use actions/cache restore (new implementation)
+            expect(mockCache._trackers.restoreCache.calls).toHaveLength(1);
         });
 
         it("should not call setupDaggerCache when cache-builds is disabled", async () => {

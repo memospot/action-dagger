@@ -1,59 +1,153 @@
+import * as fs from "node:fs";
+import * as path from "node:path";
+import * as cache from "@actions/cache";
 import * as core from "@actions/core";
 
+const CACHE_DIR_NAME = "dagger-build-cache";
+
 /**
- * Setup Dagger build cache - configure env vars for GitHub Actions Cache
+ * Get the cache directory path
  */
-export async function setupDaggerCache(): Promise<void> {
-    // Generate a scope based on workflow name and repository
-    // Using a consistent scope allows cache sharing across runs
+function getCacheDir(): string {
+    const tempDir = process.env.RUNNER_TEMP || "/tmp";
+    return path.join(tempDir, CACHE_DIR_NAME);
+}
+
+/**
+ * Generate cache key based on repository and workflow
+ */
+function getCacheKey(): string {
     const workflow = process.env.GITHUB_WORKFLOW || "unknown";
     const repository = process.env.GITHUB_REPOSITORY || "unknown";
-    // Use a stable scope - not including job name to allow sharing across job instances
-    const scope = `dagger-${repository}-${workflow}`;
+    return `dagger-build-${repository}-${workflow}`;
+}
 
-    // Check for required GitHub Actions cache env vars
-    // These are needed for the type=gha cache backend to work
-    const hasCacheUrl = !!process.env.ACTIONS_CACHE_URL;
-    const hasRuntimeToken = !!process.env.ACTIONS_RUNTIME_TOKEN;
+/**
+ * Setup Dagger build cache - restore from GitHub Actions Cache and configure Dagger
+ */
+export async function setupDaggerCache(): Promise<void> {
+    const cacheDir = getCacheDir();
+    const cacheKey = getCacheKey();
+    const restoreKeys = [
+        `dagger-build-${process.env.GITHUB_REPOSITORY || "unknown"}-`,
+        "dagger-build-",
+    ];
 
-    if (!hasCacheUrl || !hasRuntimeToken) {
-        core.warning(
-            `GitHub Actions cache env vars missing. ` +
-                `ACTIONS_CACHE_URL: ${hasCacheUrl ? "set" : "missing"}, ` +
-                `ACTIONS_RUNTIME_TOKEN: ${hasRuntimeToken ? "set" : "missing"}. ` +
-                `Build cache may not work properly.`
-        );
-    } else {
-        core.debug(`ACTIONS_CACHE_URL is set`);
-        core.debug(`ACTIONS_RUNTIME_TOKEN is set`);
+    // Ensure cache directory exists
+    if (!fs.existsSync(cacheDir)) {
+        fs.mkdirSync(cacheDir, { recursive: true });
+        core.info(`Created cache directory: ${cacheDir}`);
     }
 
-    // Set environment variable for Dagger CLI
-    // We set both the experimental env var (for older versions) and the standard one
-    const cacheConfigEnv = `type=gha,mode=max,scope=${scope}`;
-    core.exportVariable("_EXPERIMENTAL_DAGGER_CACHE_CONFIG", cacheConfigEnv);
-    process.env._EXPERIMENTAL_DAGGER_CACHE_CONFIG = cacheConfigEnv;
+    core.info(`Attempting to restore build cache with key: ${cacheKey}`);
 
-    // Also set standard Dagger cache env vars
-    // FROM: use the same scope to read from where we wrote
-    core.exportVariable("DAGGER_CACHE_FROM", `type=gha,scope=${scope}`);
-    process.env.DAGGER_CACHE_FROM = `type=gha,scope=${scope}`;
+    try {
+        const restoredKey = await cache.restoreCache([cacheDir], cacheKey, restoreKeys);
 
-    // TO: export to the same scope
-    core.exportVariable("DAGGER_CACHE_TO", `type=gha,mode=max,scope=${scope}`);
-    process.env.DAGGER_CACHE_TO = `type=gha,mode=max,scope=${scope}`;
+        if (restoredKey) {
+            core.info(`✓ Restored build cache from key: ${restoredKey}`);
+
+            // Log cache size for debugging
+            const stats = getDirectorySize(cacheDir);
+            core.info(`  Cache size: ${formatBytes(stats.size)} (${stats.files} files)`);
+        } else {
+            core.info("No build cache found, starting fresh");
+        }
+    } catch (error) {
+        core.warning(`Failed to restore cache: ${error}`);
+    }
+
+    // Configure Dagger to use local cache directory
+    // Using type=local instead of type=gha for reliable caching
+    const cacheFrom = `type=local,src=${cacheDir}`;
+    const cacheTo = `type=local,dest=${cacheDir},mode=max`;
+
+    core.exportVariable("DAGGER_CACHE_FROM", cacheFrom);
+    process.env.DAGGER_CACHE_FROM = cacheFrom;
+
+    core.exportVariable("DAGGER_CACHE_TO", cacheTo);
+    process.env.DAGGER_CACHE_TO = cacheTo;
+
+    // Also set legacy env var for older Dagger versions
+    core.exportVariable("_EXPERIMENTAL_DAGGER_CACHE_CONFIG", cacheTo);
+    process.env._EXPERIMENTAL_DAGGER_CACHE_CONFIG = cacheTo;
 
     core.info(`Configured Dagger build cache:`);
-    core.info(`  Scope: ${scope}`);
-    core.info(`  From: type=gha,scope=${scope}`);
-    core.info(`  To: type=gha,mode=max,scope=${scope}`);
+    core.info(`  Directory: ${cacheDir}`);
+    core.info(`  From: ${cacheFrom}`);
+    core.info(`  To: ${cacheTo}`);
 }
 
 /**
  * Save Dagger build cache to GitHub Actions Cache
- * No-op for type=gha as Dagger handles this natively.
- * Kept for signature compatibility with main.ts
  */
 export async function saveDaggerCache(): Promise<void> {
-    core.debug("Dagger cache saving is handled natively by type=gha, skipping manual save.");
+    const cacheDir = getCacheDir();
+    const cacheKey = getCacheKey();
+
+    if (!fs.existsSync(cacheDir)) {
+        core.info("Cache directory does not exist, nothing to save");
+        return;
+    }
+
+    // Check if directory has content
+    const stats = getDirectorySize(cacheDir);
+    if (stats.files === 0) {
+        core.info("Cache directory is empty, nothing to save");
+        return;
+    }
+
+    core.info(
+        `Saving build cache (${formatBytes(stats.size)}, ${stats.files} files) with key: ${cacheKey}`
+    );
+
+    try {
+        await cache.saveCache([cacheDir], cacheKey);
+        core.info(`✓ Saved build cache successfully`);
+    } catch (error) {
+        // Cache might already exist (race condition), which is fine
+        if (error instanceof Error && error.message.includes("already exists")) {
+            core.info("Cache entry already exists (this is normal)");
+        } else {
+            core.warning(`Failed to save cache: ${error}`);
+        }
+    }
+}
+
+/**
+ * Get directory size and file count
+ */
+function getDirectorySize(dir: string): { size: number; files: number } {
+    let size = 0;
+    let files = 0;
+
+    try {
+        const entries = fs.readdirSync(dir, { withFileTypes: true });
+        for (const entry of entries) {
+            const fullPath = path.join(dir, entry.name);
+            if (entry.isDirectory()) {
+                const subStats = getDirectorySize(fullPath);
+                size += subStats.size;
+                files += subStats.files;
+            } else {
+                size += fs.statSync(fullPath).size;
+                files++;
+            }
+        }
+    } catch {
+        // Directory might not exist or be readable
+    }
+
+    return { size, files };
+}
+
+/**
+ * Format bytes to human readable string
+ */
+function formatBytes(bytes: number): string {
+    if (bytes === 0) return "0 B";
+    const k = 1024;
+    const sizes = ["B", "KB", "MB", "GB", "TB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return `${parseFloat((bytes / k ** i).toFixed(2))} ${sizes[i]}`;
 }
