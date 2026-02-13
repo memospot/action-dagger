@@ -63,13 +63,19 @@ describe("main", () => {
             expect(mockCore._trackers.setFailed.calls).toHaveLength(0);
         });
 
-        it("should call setupDaggerCache when cache-builds is enabled", async () => {
+        it("should call setupDaggerCache (export env vars) when cache-builds is enabled", async () => {
             process.env.INPUT_VERSION = "v0.15.0";
             process.env.INPUT_CACHE_BUILDS = "true";
 
             await run();
 
-            expect(mockCache._trackers.restoreCache.calls.length).toBeGreaterThan(0);
+            // Should export cache env vars
+            const exportCalls = mockCore._trackers.exportVariable.calls.map((c) => c.args[0]);
+            expect(exportCalls).toContain("DAGGER_CACHE_TO");
+            expect(exportCalls).toContain("DAGGER_CACHE_FROM");
+
+            // Should NOT use actions/cache restore
+            expect(mockCache._trackers.restoreCache.calls).toHaveLength(0);
         });
 
         it("should not call setupDaggerCache when cache-builds is disabled", async () => {
@@ -77,6 +83,10 @@ describe("main", () => {
             process.env.INPUT_CACHE_BUILDS = "false";
 
             await run();
+
+            // Should NOT export cache env vars
+            const exportCalls = mockCore._trackers.exportVariable.calls.map((c) => c.args[0]);
+            expect(exportCalls).not.toContain("DAGGER_CACHE_TO");
 
             expect(mockCache._trackers.restoreCache.calls).toHaveLength(0);
         });
@@ -98,15 +108,13 @@ describe("main", () => {
     // post()
     // -----------------------------------------------------------------------
     describe("post", () => {
-        it("should call saveDaggerCache when cache-builds is enabled", async () => {
+        it("should be a no-op even when cache-builds is enabled (handled by Dagger)", async () => {
             process.env.INPUT_CACHE_BUILDS = "true";
-
-            mockCore._stateStore.DAGGER_CACHE_KEY = "dagger-build-test-key";
-            mockCore._stateStore.DAGGER_CACHE_PATHS = JSON.stringify(["/tmp/cache"]);
 
             await post();
 
-            expect(mockCache._trackers.saveCache.calls.length).toBeGreaterThan(0);
+            // Should NOT call saveCache
+            expect(mockCache._trackers.saveCache.calls).toHaveLength(0);
         });
 
         it("should skip save when cache-builds is disabled", async () => {
@@ -115,55 +123,6 @@ describe("main", () => {
             await post();
 
             expect(mockCache._trackers.saveCache.calls).toHaveLength(0);
-        });
-
-        it("should handle errors gracefully without throwing", async () => {
-            process.env.INPUT_CACHE_BUILDS = "true";
-
-            mockCore._stateStore.DAGGER_CACHE_KEY = "test-key";
-            mockCore._stateStore.DAGGER_CACHE_PATHS = JSON.stringify(["/tmp/cache"]);
-
-            // Use the error flag instead of reassigning the function
-            mockCache._setSaveShouldFail(true);
-
-            // Should NOT throw
-            await post();
-
-            // Should have logged a warning
-            expect(mockCore._trackers.warning.calls.length).toBeGreaterThan(0);
-        });
-
-        it("should handle missing cache state gracefully", async () => {
-            process.env.INPUT_CACHE_BUILDS = "true";
-
-            // Don't set any state
-            delete mockCore._stateStore.DAGGER_CACHE_KEY;
-            delete mockCore._stateStore.DAGGER_CACHE_PATHS;
-
-            // Should NOT throw
-            await post();
-
-            // Should not attempt to save
-            expect(mockCache._trackers.saveCache.calls).toHaveLength(0);
-        });
-
-        it("should handle unexpected errors in post gracefully", async () => {
-            process.env.INPUT_CACHE_BUILDS = "true";
-
-            // Set up valid state
-            mockCore._stateStore.DAGGER_CACHE_KEY = "test-key";
-            mockCore._stateStore.DAGGER_CACHE_PATHS = JSON.stringify(["/tmp/cache"]);
-
-            // Force an unexpected error by making saveCache throw a non-Error object
-            mockCache._setSaveShouldFail(true);
-
-            // Should NOT throw
-            await post();
-
-            // Should have logged a warning with the error message
-            expect(mockCore._trackers.warning.calls.length).toBeGreaterThan(0);
-            const warningMsg = mockCore._trackers.warning.calls[0].args[0] as string;
-            expect(warningMsg).toContain("Failed to save cache");
         });
     });
 });
