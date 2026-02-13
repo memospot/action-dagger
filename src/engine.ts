@@ -35,39 +35,27 @@ export async function stopEngine(containerId: string): Promise<boolean> {
 }
 
 /**
- * Backup the engine volume to a tarball
+ * Backup the engine volume to a tarball using zstd streaming
  */
 export async function backupEngineVolume(
     volumeName: string,
     archivePath: string,
     options?: { verbose?: boolean }
 ): Promise<void> {
-    // We use a helper alpine container to mount the volume and tar it
-    // effectively: tar -cf /backup/cache.tar -C /data .
-    const backupDir = parseDir(archivePath);
-    const backupFile = parseFile(archivePath);
-
     const isVerbose = options?.verbose ?? false;
 
-    const args = [
-        "run",
-        "--rm",
-        "-v",
-        `${volumeName}:/data`,
-        "-v",
-        `${backupDir}:/backup`,
-        "alpine",
-        "tar",
-        ...(isVerbose
-            ? ["cvf", `--backup/${backupFile}`, "--totals", "-C", "/data", "."]
-            : ["cf", `/backup/${backupFile}`, "-C", "/data", "."]),
-    ];
+    // docker run --rm -v vol:/data alpine tar -C /data -cf - . | zstd -T0 -3 -o archivePath
+    const cmd = `docker run --rm -v ${volumeName}:/data alpine tar -C /data -cf - . | zstd -T0 -3 -o ${archivePath}`;
 
-    await exec.exec("docker", args, { silent: !isVerbose });
+    if (isVerbose) {
+        core.info(`Running backup command: ${cmd}`);
+    }
+
+    await exec.exec("sh", ["-c", cmd], { silent: !isVerbose });
 }
 
 /**
- * Restore the engine volume from a tarball
+ * Restore the engine volume from a zstd compressed tarball
  */
 export async function restoreEngineVolume(
     volumeName: string,
@@ -76,25 +64,22 @@ export async function restoreEngineVolume(
     // Ensure volume exists
     await exec.exec("docker", ["volume", "create", volumeName], { silent: true });
 
-    const backupDir = parseDir(archivePath);
-    const backupFile = parseFile(archivePath);
+    // zstd -d -c archivePath | docker run -i -v vol:/data alpine tar -C /data -xf -
+    // Note: -i is crucial for docker run to accept stdin
+    const cmd = `zstd -d -c ${archivePath} | docker run --rm -i -v ${volumeName}:/data alpine tar -C /data -xf -`;
 
-    const args = [
-        "run",
-        "--rm",
-        "-v",
-        `${volumeName}:/data`,
-        "-v",
-        `${backupDir}:/backup`,
-        "alpine",
-        "tar",
-        "xf",
-        `/backup/${backupFile}`,
-        "-C",
-        "/data",
-    ];
+    await exec.exec("sh", ["-c", cmd], { silent: true });
+}
 
-    await exec.exec("docker", args, { silent: true });
+/**
+ * Delete the engine volume
+ */
+export async function deleteEngineVolume(volumeName: string): Promise<void> {
+    try {
+        await exec.exec("docker", ["volume", "rm", volumeName], { silent: true });
+    } catch (error) {
+        core.warning(`Failed to delete engine volume: ${error}`);
+    }
 }
 
 /**
@@ -127,15 +112,4 @@ export async function startEngine(volumeName: string, version = "latest"): Promi
     ];
 
     await exec.exec("docker", args, { silent: true });
-}
-
-// Helpers
-function parseDir(pathStr: string): string {
-    const lastSlash = pathStr.lastIndexOf("/");
-    return lastSlash === -1 ? "." : pathStr.substring(0, lastSlash);
-}
-
-function parseFile(pathStr: string): string {
-    const lastSlash = pathStr.lastIndexOf("/");
-    return lastSlash === -1 ? pathStr : pathStr.substring(lastSlash + 1);
 }

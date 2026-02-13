@@ -7,9 +7,7 @@ import {
     resetAllMocks,
 } from "./mocks/actions.js";
 
-// ---------------------------------------------------------------------------
 // Setup engine mock BEFORE importing cache/main modules
-// ---------------------------------------------------------------------------
 
 const mockEngine = {
     findEngineContainer: mock(() => Promise.resolve("mock-container-id")),
@@ -17,6 +15,7 @@ const mockEngine = {
     backupEngineVolume: mock(() => Promise.resolve()),
     restoreEngineVolume: mock(() => Promise.resolve()),
     startEngine: mock(() => Promise.resolve()),
+    deleteEngineVolume: mock(() => Promise.resolve()),
 };
 
 // Mock all modules before any imports
@@ -36,6 +35,19 @@ mock.module("node:fs", () => ({
     statSync: () => ({ size: 1024 }) as any,
 }));
 
+// Mock utils module
+// Mock utils module
+// We need to partial mock so we can test the real utility functions in the utils describe block,
+// but mock getAvailableDiskSpace for main tests.
+
+const originalUtils = await import("../src/utils.js");
+
+mock.module("../src/utils.js", () => ({
+    ...originalUtils,
+    getAvailableDiskSpace: mock(() => Promise.resolve(10 * 1024 * 1024 * 1024)),
+    withTimeout: mock((promise) => promise),
+}));
+
 // Import AFTER all mocks are registered
 import { post, run } from "../src/main.js";
 
@@ -52,6 +64,7 @@ describe("main", () => {
         mockEngine.backupEngineVolume.mockClear();
         mockEngine.restoreEngineVolume.mockClear();
         mockEngine.startEngine.mockClear();
+        mockEngine.deleteEngineVolume.mockClear();
         mockEngine.findEngineContainer.mockImplementation(() =>
             Promise.resolve("mock-container-id")
         );
@@ -166,9 +179,7 @@ describe("main", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // utils (kept from original but improved)
-// ---------------------------------------------------------------------------
 describe("utils", () => {
     beforeEach(() => {
         resetAllMocks();

@@ -3,10 +3,10 @@ import * as path from "node:path";
 import * as cache from "@actions/cache";
 import * as core from "@actions/core";
 import * as engine from "./engine.js";
-import { withTimeout } from "./utils.js";
+import { getAvailableDiskSpace, withTimeout } from "./utils.js";
 
 const DAGGER_ENGINE_VOLUME = "dagger-engine-vol";
-const CACHE_ARCHIVE_NAME = "dagger-engine-state.tar";
+const CACHE_ARCHIVE_NAME = "dagger-engine-state.tar.zst";
 const DEFAULT_CACHE_VERSION = "v2";
 
 /**
@@ -108,7 +108,22 @@ export async function saveDaggerCache(
 
         // 3. Backup volume with optional timeout
         const cachePath = getCacheArchivePath();
-        core.info("📦 Extracting engine volume to archive...");
+
+        // 3. Check disk space
+        // We require at least 3GB of free space to perform the backup safely.
+        // This is a conservative estimate to handle the compressed volume and avoid failing the workflow.
+        const availableSpace = await getAvailableDiskSpace(path.dirname(cachePath));
+        const MIN_REQUIRED_SPACE = 3 * 1024 * 1024 * 1024; // 3GB
+
+        if (availableSpace > 0 && availableSpace < MIN_REQUIRED_SPACE) {
+            core.warning(
+                `Low disk space detected (${(availableSpace / 1024 / 1024).toFixed(0)}MB). Skipping cache backup to prevent failure.`
+            );
+            core.info("✅ Continuing without cache save (Soft Fail)");
+            return;
+        }
+
+        core.info("📦 Extracting engine volume to archive (zstd streamed)...");
 
         if (timeoutMinutes > 0) {
             const timeoutMs = timeoutMinutes * 60 * 1000;
@@ -134,6 +149,11 @@ export async function saveDaggerCache(
             core.info(`Uploading to cache with key: ${key}`);
             await cache.saveCache([cachePath], key);
             core.info("✓ Cache saved");
+
+            // 5. Prune volume to free space
+            core.info("🧹 Pruning engine volume...");
+            await engine.deleteEngineVolume(DAGGER_ENGINE_VOLUME);
+            core.info("✓ Volume pruned");
         } else {
             core.warning("Archive file not created.");
         }

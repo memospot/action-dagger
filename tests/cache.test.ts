@@ -15,9 +15,18 @@ const mockEngine = {
     backupEngineVolume: mock(() => Promise.resolve()),
     restoreEngineVolume: mock(() => Promise.resolve()),
     startEngine: mock(() => Promise.resolve()),
+    deleteEngineVolume: mock(() => Promise.resolve()),
 };
 
 mock.module("../src/engine.js", () => mockEngine);
+
+// Mock utils module
+const mockUtils = {
+    getAvailableDiskSpace: mock(() => Promise.resolve(10 * 1024 * 1024 * 1024)), // 10GB default
+    withTimeout: mock((promise) => promise), // Pass through by default
+};
+
+mock.module("../src/utils.js", () => mockUtils);
 
 // Mock node:fs to control existsSync
 const mockFs = {
@@ -50,6 +59,10 @@ describe("cache", () => {
         mockEngine.backupEngineVolume.mockClear();
         mockEngine.restoreEngineVolume.mockClear();
         mockEngine.startEngine.mockClear();
+        mockEngine.deleteEngineVolume.mockClear();
+
+        mockUtils.getAvailableDiskSpace.mockClear();
+        mockUtils.getAvailableDiskSpace.mockResolvedValue(10 * 1024 * 1024 * 1024); // Reset to 10GB
 
         mockFs.existsSync.mockClear();
         mockFs.statSync.mockClear();
@@ -130,6 +143,9 @@ describe("cache", () => {
 
             await saveDaggerCache("v0.15.0");
 
+            // Should check disk space
+            expect(mockUtils.getAvailableDiskSpace).toHaveBeenCalled();
+
             // Should find engine
             expect(mockEngine.findEngineContainer).toHaveBeenCalled();
 
@@ -141,6 +157,39 @@ describe("cache", () => {
 
             // Should save to cache
             expect(mockCache._trackers.saveCache.calls).toHaveLength(1);
+
+            // Should prune volume after save
+            expect(mockEngine.deleteEngineVolume).toHaveBeenCalled();
+        });
+
+        it("should skip backup if disk space is low", async () => {
+            process.env.GITHUB_WORKFLOW = "test-flow";
+            process.env.GITHUB_REPOSITORY = "test-org/test-repo";
+            process.env.RUNNER_TEMP = "/tmp";
+
+            mockEngine.findEngineContainer.mockResolvedValue("test-container-id");
+
+            // Mock low disk space (e.g. 1GB)
+            mockUtils.getAvailableDiskSpace.mockResolvedValue(1 * 1024 * 1024 * 1024);
+
+            await saveDaggerCache("v0.15.0");
+
+            // Should check disk space
+            expect(mockUtils.getAvailableDiskSpace).toHaveBeenCalled();
+
+            // Should log warning
+            const warningCalls = mockCore._trackers.warning.calls.map((c) => String(c.args[0]));
+            expect(warningCalls.some((msg) => msg.includes("Low disk space"))).toBe(true);
+
+            // Should fail soft (info message)
+            const infoCalls = mockCore._trackers.info.calls.map((c) => String(c.args[0]));
+            expect(infoCalls.some((msg) => msg.includes("Soft Fail"))).toBe(true);
+
+            // Should NOT backup
+            expect(mockEngine.backupEngineVolume).not.toHaveBeenCalled();
+
+            // Should NOT save cache
+            expect(mockCache._trackers.saveCache.calls).toHaveLength(0);
         });
 
         it("should log archive size after backup", async () => {
@@ -188,19 +237,12 @@ describe("cache", () => {
             mockEngine.findEngineContainer.mockResolvedValue("test-container-id");
             mockFs.existsSync.mockReturnValue(true);
 
-            // Mock backup to take longer than timeout
-            // We use a small timeout for the test (e.g. 1ms), so 50ms delay is enough
-            mockEngine.backupEngineVolume.mockImplementation(async () => {
-                await new Promise((resolve) => setTimeout(resolve, 50));
-            });
+            // Update utils mock to simulate timeout
+            mockUtils.withTimeout.mockRejectedValue(
+                new Error("Cache backup timed out after 1ms")
+            );
 
-            // Call with very short timeout: 0.00002 mins ~ 1.2ms
-            // But withTimeout has min 1ms granularity?
-            // Let's use a slightly larger timeout and larger delay to be safe and avoid flakes.
-            // 0.001 min = 60ms. Delay 150ms.
-            const timeoutMinutes = 0.0005; // 30ms
-
-            await saveDaggerCache("v0.15.0", "v2", timeoutMinutes);
+            await saveDaggerCache("v0.15.0");
 
             // Should warn about timeout
             const warningCalls = mockCore._trackers.warning.calls.map((c) => String(c.args[0]));

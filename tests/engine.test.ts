@@ -1,15 +1,8 @@
 import { beforeEach, describe, expect, it, mock } from "bun:test";
 import { mockExec, resetAllMocks } from "./mocks/actions.js";
 
-/**
- * NOTE: Bun's mock.module() doesn't work for transitive imports.
- * Since engine.ts imports @actions/exec, and we can't reliably mock
- * that import, these tests would require dependency injection or
- * a different test runner to work properly.
- *
- * The engine module is tested indirectly through cache.test.ts
- * and main.test.ts which mock the entire engine module.
- */
+// Note: We use mock.module for @actions/exec.
+// The engine module is also tested indirectly through cache.test.ts and main.test.ts.
 
 mock.module("@actions/exec", () => ({
     getExecOutput: mockExec.getExecOutput,
@@ -32,45 +25,71 @@ describe("Engine Lifecycle", () => {
     });
 
     describe("backupEngineVolume", () => {
-        it("should use normal tar command by default", async () => {
+        it("should pipe tar to zstd", async () => {
             // Bypass mock/cache by appending query param
-            // @ts-expect-error
-            const engine = await import(`../src/engine.js?bust=${Date.now()}-1`);
-            await engine.backupEngineVolume("vol-name", "/tmp/archive.tar");
 
-            // Verify exec was called with correct arguments
+            const engine = await import(`../src/engine.js?bust=${Date.now()}-1`);
+            await engine.backupEngineVolume("vol-name", "/tmp/archive.tar.zst");
+
+            // Verify exec arguments
             const calls = mockExec._trackers.exec.calls;
             expect(calls.length).toBeGreaterThan(0);
 
+            const command = calls[0].args[0] as string;
             const args = calls[0].args[1] as string[];
             const options = calls[0].args[2] as { silent?: boolean };
 
-            // Should contain "cf" (create file) but NOT "v" (verbose)
-            expect(args).toContain("cf");
-            expect(args).not.toContain("cvf");
+            expect(command).toBe("sh");
+            expect(args[0]).toBe("-c");
+
+            const shellCmd = args[1];
+            expect(shellCmd).toContain("docker run");
+            expect(shellCmd).toContain("alpine tar");
+            expect(shellCmd).toContain("| zstd -T0 -3");
+            expect(shellCmd).toContain("-o /tmp/archive.tar.zst");
 
             // Should be silent by default (!verbose)
             expect(options?.silent).toBe(true);
         });
 
-        it("should use verbose tar command when verbose option is true", async () => {
-            // @ts-expect-error
+        it("should log command when verbose is true", async () => {
             const engine = await import(`../src/engine.js?bust=${Date.now()}-2`);
-            await engine.backupEngineVolume("vol-name", "/tmp/archive.tar", { verbose: true });
+            await engine.backupEngineVolume("vol-name", "/tmp/archive.tar.zst", {
+                verbose: true,
+            });
 
-            // Verify exec was called with correct arguments
             const calls = mockExec._trackers.exec.calls;
             expect(calls.length).toBeGreaterThan(0);
 
-            const args = calls[0].args[1] as string[];
-            const options = calls[0].args[2] as { silent?: boolean };
-
-            // Should contain "cvf" (create verbose file) and "--totals"
-            expect(args).toContain("cvf");
-            expect(args).toContain("--totals");
-
             // Should NOT be silent
+            const options = calls[0].args[2] as { silent?: boolean };
             expect(options?.silent).toBe(false);
+        });
+    });
+
+    describe("restoreEngineVolume", () => {
+        it("should pipe zstd to tar", async () => {
+            const engine = await import(`../src/engine.js?bust=${Date.now()}-3`);
+            await engine.restoreEngineVolume("vol-name", "/tmp/archive.tar.zst");
+
+            // Expect volume create + restore command
+            const calls = mockExec._trackers.exec.calls;
+            expect(calls.length).toBeGreaterThan(1); // Volume create is first
+
+            // Find the restore command (sh -c)
+            const restoreCall = calls.find((c) => c.args[0] === "sh");
+            expect(restoreCall).toBeDefined();
+
+            if (!restoreCall) return;
+
+            const args = restoreCall.args[1] as string[];
+            const shellCmd = args[1];
+
+            expect(shellCmd).toContain("zstd -d -c /tmp/archive.tar.zst");
+            expect(shellCmd).toContain("|");
+            expect(shellCmd).toContain("docker run");
+            expect(shellCmd).toContain("-i"); // Crucial flag
+            expect(shellCmd).toContain("tar -C /data -xf -");
         });
     });
 });
