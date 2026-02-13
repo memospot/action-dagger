@@ -152,6 +152,40 @@ describe("exec", () => {
             const cmd = assembleCommand(inputs);
             expect(cmd).toEqual(["functions"]);
         });
+        it("should handle multiline args with quotes (repro for --platforms)", () => {
+            const args =
+                'build --source . --version v1.2.3 --platforms "linux/amd64,linux/arm64"';
+            const inputs = makeInputs({
+                verb: "call",
+                args: args,
+            });
+            const cmd = assembleCommand(inputs);
+
+            expect(cmd).toEqual([
+                "call",
+                "build",
+                "--source",
+                ".",
+                "--version",
+                "v1.2.3",
+                "--platforms",
+                "linux/amd64,linux/arm64",
+            ]);
+        });
+
+        it("should handle multiline args with spaces in quotes", () => {
+            const args = 'build --platforms "linux/amd64, linux/arm64"';
+            const inputs = makeInputs({ args });
+            const cmd = assembleCommand(inputs);
+            expect(cmd).toEqual(["call", "build", "--platforms", "linux/amd64, linux/arm64"]);
+        });
+
+        it("should handle empty quoted string", () => {
+            const args = 'build --platforms ""';
+            const inputs = makeInputs({ args });
+            const cmd = assembleCommand(inputs);
+            expect(cmd).toEqual(["call", "build", "--platforms", ""]);
+        });
     });
 
     // -----------------------------------------------------------------------
@@ -165,7 +199,6 @@ Full trace at https://dagger.cloud/myorg/traces/abc123def
             const url = extractTraceUrl(stderr);
             expect(url).toBe("https://dagger.cloud/myorg/traces/abc123def");
         });
-
         it("should extract setup trace URL", () => {
             const stderr = "To setup tracing, visit https://dagger.cloud/traces/setup";
             const url = extractTraceUrl(stderr);

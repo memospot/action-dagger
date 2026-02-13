@@ -130,31 +130,36 @@ export function splitArgs(str: string): string[] {
     let current = "";
     let inDoubleQuote = false;
     let inSingleQuote = false;
+    let tokenStarted = false;
 
     for (let i = 0; i < str.length; i++) {
         const char = str[i];
 
         if (char === '"' && !inSingleQuote) {
             inDoubleQuote = !inDoubleQuote;
+            tokenStarted = true;
             continue;
         }
 
         if (char === "'" && !inDoubleQuote) {
             inSingleQuote = !inSingleQuote;
+            tokenStarted = true;
             continue;
         }
 
         if (char === " " && !inDoubleQuote && !inSingleQuote) {
-            if (current.length > 0) {
+            if (tokenStarted) {
                 args.push(current);
                 current = "";
+                tokenStarted = false;
             }
         } else {
             current += char;
+            tokenStarted = true;
         }
     }
 
-    if (current.length > 0) {
+    if (tokenStarted) {
         args.push(current);
     }
 
