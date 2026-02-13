@@ -32,16 +32,16 @@ export async function setupDaggerCache(): Promise<void> {
     // We set both the experimental env var (for older versions) and the standard one
     const cacheConfigEnv = `type=gha,mode=max,scope=${scope}`;
     core.exportVariable("_EXPERIMENTAL_DAGGER_CACHE_CONFIG", cacheConfigEnv);
-    process.env["_EXPERIMENTAL_DAGGER_CACHE_CONFIG"] = cacheConfigEnv;
+    process.env._EXPERIMENTAL_DAGGER_CACHE_CONFIG = cacheConfigEnv;
 
     // Also set standard Dagger cache env vars
     // FROM: use the same scope to read from where we wrote
     core.exportVariable("DAGGER_CACHE_FROM", `type=gha,scope=${scope}`);
-    process.env["DAGGER_CACHE_FROM"] = `type=gha,scope=${scope}`;
+    process.env.DAGGER_CACHE_FROM = `type=gha,scope=${scope}`;
 
     // TO: export to the same scope
     core.exportVariable("DAGGER_CACHE_TO", `type=gha,mode=max,scope=${scope}`);
-    process.env["DAGGER_CACHE_TO"] = `type=gha,mode=max,scope=${scope}`;
+    process.env.DAGGER_CACHE_TO = `type=gha,mode=max,scope=${scope}`;
 
     core.info(`Configured Dagger build cache:`);
     core.info(`  Scope: ${scope}`);
