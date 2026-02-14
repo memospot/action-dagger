@@ -1,6 +1,6 @@
 import * as exec from "@actions/exec";
-import type { ActionInputs } from "./types.js";
-import { logDebug, logInfo, logWarning } from "./utils.js";
+import { logDebug, logInfo, logWarning } from "./logger";
+import type { ActionInputs } from "./types";
 
 /**
  * Result of executing a dagger command

@@ -2,8 +2,9 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import * as cache from "@actions/cache";
 import * as core from "@actions/core";
-import * as engine from "./engine.js";
-import { getAvailableDiskSpace, withTimeout } from "./utils.js";
+import { getAvailableDiskSpace } from "./disk-space";
+import * as engine from "./engine";
+import { withTimeout } from "./timeout";
 
 const DAGGER_ENGINE_VOLUME = "dagger-engine-vol";
 const CACHE_ARCHIVE_NAME_ZSTD = "dagger-engine-state.tar.zst";

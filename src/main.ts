@@ -1,9 +1,10 @@
 import * as core from "@actions/core";
-import { saveDaggerCache, setupDaggerCache } from "./cache.js";
-import { getBinary } from "./dagger.js";
-import { executeDaggerCommand, writeSummary } from "./exec.js";
-import type { ActionOutputs } from "./types.js";
-import { parseInputs, setOutputs } from "./utils.js";
+import { saveDaggerCache, setupDaggerCache } from "./cache";
+import { getBinary } from "./dagger";
+import { executeDaggerCommand, writeSummary } from "./exec";
+import { parseInputs } from "./parse-inputs";
+import { setOutputs } from "./set-outputs";
+import type { ActionOutputs } from "./types";
 
 /**
  * Main entry point for the GitHub Action

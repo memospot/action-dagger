@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
-import { mockCore, mockExec, resetAllMocks } from "./mocks/actions.js";
+import { mockCore, mockExec, resetAllMocks } from "./mocks/actions";
 
 // ---------------------------------------------------------------------------
 // Module mocks — registered before importing the module under test.

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, mock } from "bun:test";
-import { mockExec, resetAllMocks } from "./mocks/actions.js";
+import { mockExec, resetAllMocks } from "./mocks/actions";
 
 // Note: We use mock.module for @actions/exec.
 // The engine module is also tested indirectly through cache.test.ts and main.test.ts.

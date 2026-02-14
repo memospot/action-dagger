@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
-import { mockCache, mockCore, resetAllMocks } from "./mocks/actions.js";
+import { mockCache, mockCore, resetAllMocks } from "./mocks/actions";
 
 // ---------------------------------------------------------------------------
 // Module mocks — must be registered before importing the module under test.
@@ -20,13 +20,19 @@ const mockEngine = {
 
 mock.module("../src/engine.js", () => mockEngine);
 
-// Mock utils module
-const mockUtils = {
+// Mock disk-space module
+const mockDiskSpace = {
     getAvailableDiskSpace: mock(() => Promise.resolve(10 * 1024 * 1024 * 1024)), // 10GB default
+};
+
+mock.module("../src/disk-space.js", () => mockDiskSpace);
+
+// Mock timeout module
+const mockTimeout = {
     withTimeout: mock((promise) => promise), // Pass through by default
 };
 
-mock.module("../src/utils.js", () => mockUtils);
+mock.module("../src/timeout.js", () => mockTimeout);
 
 // Mock node:fs to control existsSync
 const mockFs = {
@@ -61,8 +67,8 @@ describe("cache", () => {
         mockEngine.startEngine.mockClear();
         mockEngine.deleteEngineVolume.mockClear();
 
-        mockUtils.getAvailableDiskSpace.mockClear();
-        mockUtils.getAvailableDiskSpace.mockResolvedValue(10 * 1024 * 1024 * 1024); // Reset to 10GB
+        mockDiskSpace.getAvailableDiskSpace.mockClear();
+        mockDiskSpace.getAvailableDiskSpace.mockResolvedValue(10 * 1024 * 1024 * 1024); // Reset to 10GB
 
         mockFs.existsSync.mockClear();
         mockFs.statSync.mockClear();
@@ -168,7 +174,7 @@ describe("cache", () => {
 
         it("should skip backup if disk space is low (soft fail)", async () => {
             mockEngine.findEngineContainer.mockResolvedValue("container-id");
-            mockUtils.getAvailableDiskSpace.mockResolvedValue(1024); // Low space
+            mockDiskSpace.getAvailableDiskSpace.mockResolvedValue(1024); // Low space
 
             await saveDaggerCache();
 

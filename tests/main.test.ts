@@ -1,12 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 import type { Stats } from "node:fs";
-import {
-    mockCache,
-    mockCore,
-    mockExec,
-    mockToolCache,
-    resetAllMocks,
-} from "./mocks/actions.js";
+import { mockCache, mockCore, mockExec, mockToolCache, resetAllMocks } from "./mocks/actions";
 
 // Setup engine mock BEFORE importing cache/main modules
 
@@ -36,16 +30,12 @@ mock.module("node:fs", () => ({
     statSync: () => ({ size: 1024 }) as Stats,
 }));
 
-// Mock utils module
-// Mock utils module
-// We need to partial mock so we can test the real utility functions in the utils describe block,
-// but mock getAvailableDiskSpace for main tests.
-
-const originalUtils = await import("../src/utils.js");
-
-mock.module("../src/utils.js", () => ({
-    ...originalUtils,
+// Mock disk-space and timeout modules for cache tests
+mock.module("../src/disk-space.js", () => ({
     getAvailableDiskSpace: mock(() => Promise.resolve(10 * 1024 * 1024 * 1024)),
+}));
+
+mock.module("../src/timeout.js", () => ({
     withTimeout: mock((promise) => promise),
 }));
 
@@ -196,7 +186,7 @@ describe("utils", () => {
 
     describe("setOutputs", () => {
         it("should set all three outputs correctly", async () => {
-            const { setOutputs } = await import("../src/utils.js");
+            const { setOutputs } = await import("../src/set-outputs.js");
 
             setOutputs({
                 daggerVersion: "v0.15.0",
@@ -232,7 +222,7 @@ describe("utils", () => {
             process.env.INPUT_CACHE_KEY = "my-key";
             process.env.INPUT_WORKDIR = "./my-app";
 
-            const { parseInputs } = await import("../src/utils.js");
+            const { parseInputs } = await import("../src/parse-inputs.js");
             const inputs = parseInputs();
 
             expect(inputs.version).toBe("v0.15.0");
@@ -245,7 +235,7 @@ describe("utils", () => {
         it("should default version to 'latest' when not specified", async () => {
             delete process.env.INPUT_VERSION;
 
-            const { parseInputs } = await import("../src/utils.js");
+            const { parseInputs } = await import("../src/parse-inputs.js");
             const inputs = parseInputs();
 
             expect(inputs.version).toBe("latest");
@@ -254,7 +244,9 @@ describe("utils", () => {
 
     describe("logging", () => {
         it("should call the corresponding @actions/core methods", async () => {
-            const { logInfo, logDebug, logWarning, logError } = await import("../src/utils.js");
+            const { logInfo, logDebug, logWarning, logError } = await import(
+                "../src/logger.js"
+            );
 
             logInfo("info msg");
             logDebug("debug msg");

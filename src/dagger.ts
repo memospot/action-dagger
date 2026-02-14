@@ -2,8 +2,8 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import * as exec from "@actions/exec";
 import * as tc from "@actions/tool-cache";
+import { logDebug, logInfo, logWarning } from "./logger";
 import type { ActionInputs, BinaryInfo, PlatformInfo } from "./types.js";
-import { logDebug, logInfo, logWarning } from "./utils.js";
 
 const DAGGER_GITHUB_REPO = "dagger/dagger";
 const DAGGER_DOWNLOAD_URL = "https://dl.dagger.io/dagger";
