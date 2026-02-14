@@ -95,23 +95,25 @@ export async function post(): Promise<void> {
 
 // Run main if this file is executed directly
 if (require.main === module) {
-    const isPost = process.env.STATE_isPost === "true";
+    (async () => {
+        const isPost = process.env.STATE_isPost === "true";
 
-    // Use console.error for critical startup messages (always visible)
-    console.error(
-        `[DAGGER-ACTION] Starting. isPost=${isPost}, STATE_isPost=${process.env.STATE_isPost || "not set"}`
-    );
-    core.info(`Action phase: ${isPost ? "post" : "main"}`);
-    core.info(`STATE_isPost: ${process.env.STATE_isPost || "not set"}`);
+        // Use console.error for critical startup messages (always visible)
+        console.error(
+            `[DAGGER-ACTION] Starting. isPost=${isPost}, STATE_isPost=${process.env.STATE_isPost || "not set"}`
+        );
+        core.info(`Action phase: ${isPost ? "post" : "main"}`);
+        core.info(`STATE_isPost: ${process.env.STATE_isPost || "not set"}`);
 
-    if (isPost) {
-        console.error("[DAGGER-ACTION] Running POST phase");
-        post();
-    } else {
-        console.error("[DAGGER-ACTION] Running MAIN phase, marking for post");
-        // Mark that we'll run post
-        core.saveState("isPost", "true");
-        core.info("Marked for post-action execution");
-        run();
-    }
+        if (isPost) {
+            console.error("[DAGGER-ACTION] Running POST phase");
+            await post();
+        } else {
+            console.error("[DAGGER-ACTION] Running MAIN phase, marking for post");
+            // Mark that we'll run post
+            core.saveState("isPost", "true");
+            core.info("Marked for post-action execution");
+            await run();
+        }
+    })();
 }
