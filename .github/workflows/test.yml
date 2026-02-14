@@ -142,7 +142,7 @@ jobs:
           version: latest
           verb: core
           args: version
-          cloud-token: dag_dagger_sBIv6DsjNerWvTqt2bSFeigBUqWxp9bhh3ONSSgeFnw
+          cloud-token: "${{ secrets.DAGGER_CLOUD_TOKEN }}"
       - name: "Check traceURL output (should be set)"
         run: |
           url='${{ steps.traceurl-token.outputs.traceURL }}'
