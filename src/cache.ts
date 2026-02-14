@@ -58,7 +58,9 @@ export async function setupDaggerCache(
     cacheKeyInput?: string,
     compressionLevel = 0
 ): Promise<void> {
+    const startTime = Date.now();
     core.info("🗡️ Setting up Dagger Engine cache...");
+    core.debug(`lifecycle:cache:setup:start version=${daggerVersion}`);
 
     const cachePath = getCacheArchivePath(compressionLevel);
     // Verify directory exists (it should, as getCacheArchivePath uses RUNNER_TEMP)
@@ -113,6 +115,9 @@ export async function setupDaggerCache(
         core.error(`Failed to start Dagger Engine: ${error}`);
         // We don't throw here to allow fallback to CLI-spawned engine (though it won't have cache)
     }
+
+    const duration = Date.now() - startTime;
+    core.debug(`lifecycle:cache:setup:end duration=${duration}ms`);
 }
 
 /**
@@ -123,7 +128,9 @@ export async function saveDaggerCache(
     timeoutMinutes: number = 10,
     compressionLevel = 0
 ): Promise<void> {
+    const startTime = Date.now();
     core.info("💾 Saving Dagger Engine cache...");
+    core.debug(`lifecycle:cache:save:start`);
 
     let cachePath = "";
 
@@ -205,6 +212,9 @@ export async function saveDaggerCache(
         }
         core.warning(`Failed to save cache: ${error}`);
     } finally {
+        const duration = Date.now() - startTime;
+        core.debug(`lifecycle:cache:save:end duration=${duration}ms`);
+
         // Always clean up the archive file to prevent disk space accumulation
         if (cachePath && fs.existsSync(cachePath)) {
             try {

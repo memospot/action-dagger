@@ -1,3 +1,4 @@
+import * as fs from "node:fs";
 import * as core from "@actions/core";
 import * as exec from "@actions/exec";
 
@@ -21,15 +22,31 @@ export async function findEngineContainer(): Promise<string | null> {
 
 /**
  * Stop the Dagger Engine container
+ * Uses `docker rm -f` for immediate termination instead of graceful shutdown
  */
 export async function stopEngine(containerId: string): Promise<boolean> {
+    const startTime = Date.now();
+    core.debug(`lifecycle:engine:stop:start container=${containerId}`);
+
     try {
-        await exec.exec("docker", ["stop", containerId], { silent: true });
-        // Remove the container after stopping to avoid conflicts on next run
-        await exec.exec("docker", ["rm", containerId], { silent: true });
+        // Use rm -f to forcefully remove the container immediately
+        // This avoids the 10-second graceful shutdown timeout of `docker stop`
+        await exec.exec("docker", ["rm", "-f", containerId], { silent: true });
+        const duration = Date.now() - startTime;
+        core.debug(`lifecycle:engine:stop:end duration=${duration}ms`);
         return true;
     } catch (error) {
+        // Check if the container is already gone (non-fatal)
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        if (errorMsg.includes("No such container")) {
+            core.warning(`Engine container ${containerId} already removed`);
+            const duration = Date.now() - startTime;
+            core.debug(`lifecycle:engine:stop:end duration=${duration}ms`);
+            return true;
+        }
+
         core.warning(`Failed to stop engine container: ${error}`);
+        core.debug(`lifecycle:engine:stop:end error=true`);
         return false;
     }
 }
@@ -45,70 +62,138 @@ export async function backupEngineVolume(
     archivePath: string,
     options?: { verbose?: boolean; compressionLevel?: number }
 ): Promise<void> {
+    const startTime = Date.now();
     const isVerbose = options?.verbose ?? false;
     const compressionLevel = options?.compressionLevel ?? 0;
 
-    // Check if volume exists
+    core.debug(
+        `lifecycle:backup:start volume=${volumeName} compressionLevel=${compressionLevel}`
+    );
+
+    // Track if backup was cancelled
+    let isCancelled = false;
+
+    // Set up signal handler for cancellation
+    const signalHandler = () => {
+        isCancelled = true;
+        core.debug("lifecycle:backup:cancelled signal=SIGINT");
+    };
+    process.once("SIGINT", signalHandler);
+    process.once("SIGTERM", signalHandler);
+
+    // Cleanup function to remove partial archive
+    const cleanup = () => {
+        if (fs.existsSync(archivePath)) {
+            try {
+                fs.unlinkSync(archivePath);
+                core.debug("lifecycle:backup:cancelled partialArchiveRemoved=true");
+            } catch (cleanupError) {
+                core.debug(`Failed to remove partial archive: ${cleanupError}`);
+            }
+        }
+    };
+
     try {
-        await exec.exec("docker", ["volume", "inspect", volumeName], { silent: true });
-    } catch {
-        throw new Error(`Volume ${volumeName} does not exist`);
-    }
-
-    if (compressionLevel === 0) {
-        // Fast mode: plain tar, let @actions/cache handle compression
-        core.info(
-            `Backing up volume to plain tar archive (compression level 0 - fastest mode)`
-        );
-
-        const cmd = `set -o pipefail && docker run --rm -v ${volumeName}:/data alpine tar -C /data -cf - . > ${archivePath}`;
-        core.info(
-            `Running backup command: docker run --rm -v ${volumeName}:/data alpine tar -C /data -cf - . > ${archivePath}`
-        );
-
-        let stderr = "";
+        // Check if volume exists
         try {
-            await exec.exec("bash", ["-c", cmd], {
-                silent: !isVerbose,
-                listeners: {
-                    stderr: (data: Buffer) => {
-                        stderr += data.toString();
-                    },
-                },
-            });
-        } catch (error) {
-            const errorMsg = stderr ? `Error output: ${stderr}` : "";
-            throw new Error(`Backup command failed: ${error}. ${errorMsg}`);
-        }
-    } else {
-        // Compressed mode: tar + zstd with specified level
-        core.info(`Backing up volume with zstd compression level ${compressionLevel}`);
-
-        // Check if zstd is available
-        try {
-            await exec.exec("which", ["zstd"], { silent: true });
+            await exec.exec("docker", ["volume", "inspect", volumeName], { silent: true });
         } catch {
-            throw new Error("zstd is not installed on this runner");
+            throw new Error(`Volume ${volumeName} does not exist`);
         }
 
-        const cmd = `set -o pipefail && docker run --rm -v ${volumeName}:/data alpine tar -C /data -cf - . | zstd -T0 -${compressionLevel} -o ${archivePath}`;
-        core.info(
-            `Running backup command: docker run --rm -v ${volumeName}:/data alpine tar -C /data -cf - . | zstd -T0 -${compressionLevel} -o ${archivePath}`
-        );
+        // Check for cancellation before starting backup
+        if (isCancelled) {
+            core.info("Backup cancelled before starting");
+            return;
+        }
 
-        let stderr = "";
-        try {
-            await exec.exec("bash", ["-c", cmd], {
-                silent: !isVerbose,
-                listeners: {
-                    stderr: (data: Buffer) => {
-                        stderr += data.toString();
+        if (compressionLevel === 0) {
+            // Fast mode: plain tar, let @actions/cache handle compression
+            core.info(
+                `Backing up volume to plain tar archive (compression level 0 - fastest mode)`
+            );
+
+            const cmd = `set -o pipefail && docker run --rm -v ${volumeName}:/data alpine tar -C /data -cf - . > ${archivePath}`;
+            core.info(
+                `Running backup command: docker run --rm -v ${volumeName}:/data alpine tar -C /data -cf - . > ${archivePath}`
+            );
+
+            let stderr = "";
+            try {
+                await exec.exec("bash", ["-c", cmd], {
+                    silent: !isVerbose,
+                    listeners: {
+                        stderr: (data: Buffer) => {
+                            stderr += data.toString();
+                        },
                     },
-                },
-            });
-        } catch (error) {
-            const errorMsg = stderr ? `Error output: ${stderr}` : "";
-            throw new Error(`Backup command failed: ${error}. ${errorMsg}`);
+                });
+            } catch (error) {
+                // Check if this was due to cancellation
+                if (isCancelled) {
+                    core.info("Backup interrupted by cancellation signal");
+                    return;
+                }
+                const errorMsg = stderr ? `Error output: ${stderr}` : "";
+                throw new Error(`Backup command failed: ${error}. ${errorMsg}`);
+            }
+        } else {
+            // Compressed mode: tar + zstd with specified level
+            core.info(`Backing up volume with zstd compression level ${compressionLevel}`);
+
+            // Check if zstd is available
+            try {
+                await exec.exec("which", ["zstd"], { silent: true });
+            } catch {
+                throw new Error("zstd is not installed on this runner");
+            }
+
+            // Check for cancellation before running backup
+            if (isCancelled) {
+                core.info("Backup cancelled before starting");
+                return;
+            }
+
+            const cmd = `set -o pipefail && docker run --rm -v ${volumeName}:/data alpine tar -C /data -cf - . | zstd -T0 -${compressionLevel} -o ${archivePath}`;
+            core.info(
+                `Running backup command: docker run --rm -v ${volumeName}:/data alpine tar -C /data -cf - . | zstd -T0 -${compressionLevel} -o ${archivePath}`
+            );
+
+            let stderr = "";
+            try {
+                await exec.exec("bash", ["-c", cmd], {
+                    silent: !isVerbose,
+                    listeners: {
+                        stderr: (data: Buffer) => {
+                            stderr += data.toString();
+                        },
+                    },
+                });
+            } catch (error) {
+                // Check if this was due to cancellation
+                if (isCancelled) {
+                    core.info("Backup interrupted by cancellation signal");
+                    return;
+                }
+                const errorMsg = stderr ? `Error output: ${stderr}` : "";
+                throw new Error(`Backup command failed: ${error}. ${errorMsg}`);
+            }
+        }
+
+        const duration = Date.now() - startTime;
+        core.debug(`lifecycle:backup:end duration=${duration}ms`);
+    } catch (error) {
+        const duration = Date.now() - startTime;
+        core.debug(`lifecycle:backup:end duration=${duration}ms error=true`);
+        throw error;
+    } finally {
+        // Always remove signal handlers
+        process.off("SIGINT", signalHandler);
+        process.off("SIGTERM", signalHandler);
+
+        // Cleanup partial archive if cancelled
+        if (isCancelled) {
+            cleanup();
         }
     }
 }

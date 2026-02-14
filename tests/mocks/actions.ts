@@ -241,6 +241,7 @@ let execExitCode = 0;
 let execStdout = "dagger v0.15.0";
 let execStderr = "";
 let execShouldFail = false;
+let execErrorMessage = "Mock exec failed";
 
 const execTrackers = {
     exec: createTracker(),
@@ -260,6 +261,10 @@ export const mockExec = {
         execShouldFail = shouldFail;
     },
 
+    _setExecErrorMessage: (message: string): void => {
+        execErrorMessage = message;
+    },
+
     exec: async (
         commandLine: string,
         args?: string[],
@@ -271,7 +276,7 @@ export const mockExec = {
         execTrackers.exec.track(commandLine, args, options);
 
         if (execShouldFail) {
-            throw new Error("Mock exec failed");
+            throw new Error(execErrorMessage);
         }
 
         // Call listeners to simulate streaming output
