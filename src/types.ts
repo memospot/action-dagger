@@ -8,8 +8,8 @@ export interface ActionInputs {
     cacheBuilds: boolean;
     /** Cache Dagger binary to avoid re-downloading */
     cacheBinary: boolean;
-    /** Cache version for cache invalidation */
-    cacheVersion: string;
+    /** Custom cache key for build cache. If not provided, a default key is generated. */
+    cacheKey?: string;
     /** Timeout in minutes for cache operations */
     cacheTimeoutMinutes: number;
     commit: string;

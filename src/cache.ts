@@ -7,7 +7,7 @@ import { getAvailableDiskSpace, withTimeout } from "./utils.js";
 
 const DAGGER_ENGINE_VOLUME = "dagger-engine-vol";
 const CACHE_ARCHIVE_NAME = "dagger-engine-state.tar.zst";
-const DEFAULT_CACHE_VERSION = "v2";
+const DEFAULT_CACHE_PREFIX = "dagger-v1";
 
 /**
  * Get the path where we store the cache archive
@@ -18,14 +18,31 @@ function getCacheArchivePath(): string {
 }
 
 /**
- * Generate cache key based on repository, branch, Dagger version, and cache version
+ * Generate cache key.
+ * If customKey is provided, use it.
+ * Otherwise generate a default rolling key: dagger-v1-{os}-{arch}-{run_id}
  */
-function getCacheKey(daggerVersion: string, cacheVersion: string): string {
-    const workflow = process.env.GITHUB_WORKFLOW || "unknown";
-    const repository = process.env.GITHUB_REPOSITORY || "unknown";
-    // We include dagger version because internal state format might change
-    // cacheVersion allows users to invalidate caches when needed
-    return `dagger-buildkit-${cacheVersion}-${process.platform}-${daggerVersion}-${repository}-${workflow}`;
+function getCacheKey(customKey?: string): string {
+    if (customKey) {
+        return customKey;
+    }
+
+    // Default rolling key
+    const runId = process.env.GITHUB_RUN_ID || "unknown";
+    return `${DEFAULT_CACHE_PREFIX}-${process.platform}-${process.arch}-${runId}`;
+}
+
+/**
+ * Get restore keys.
+ * If customKey is provided: [customKey without last segment]
+ * Otherwise (default): [dagger-v1-{os}-{arch}-]
+ */
+function getRestoreKeys(key: string): string[] {
+    const lastDash = key.lastIndexOf("-");
+    if (lastDash === -1) {
+        return [];
+    }
+    return [key.substring(0, lastDash)];
 }
 
 /**
@@ -33,7 +50,7 @@ function getCacheKey(daggerVersion: string, cacheVersion: string): string {
  */
 export async function setupDaggerCache(
     daggerVersion: string,
-    cacheVersion: string = DEFAULT_CACHE_VERSION
+    cacheKeyInput?: string
 ): Promise<void> {
     core.info("🗡️ Setting up Dagger Engine cache...");
 
@@ -44,15 +61,16 @@ export async function setupDaggerCache(
         fs.mkdirSync(cacheDir, { recursive: true });
     }
 
-    const key = getCacheKey(daggerVersion, cacheVersion);
-    const restoreKeys = [
-        `dagger-buildkit-${cacheVersion}-${process.platform}-${daggerVersion}-${process.env.GITHUB_REPOSITORY}-`,
-        `dagger-buildkit-${cacheVersion}-${process.platform}-${daggerVersion}-`,
-    ];
+    // Determine keys
+    const primaryKey = getCacheKey(cacheKeyInput);
+    const restoreKeys = getRestoreKeys(primaryKey);
+
+    core.debug(`Restore keys: ${JSON.stringify(restoreKeys)}`);
 
     try {
         // We restore the *file* (tarball)
-        const restoredKey = await cache.restoreCache([cachePath], key, restoreKeys);
+        // We restore using the restore keys (prefix match)
+        const restoredKey = await cache.restoreCache([cachePath], primaryKey, restoreKeys);
         if (restoredKey) {
             core.info(`✓ Restored engine cache archive from key: ${restoredKey}`);
 
@@ -95,8 +113,7 @@ export async function setupDaggerCache(
  * Save Dagger cache by backing up the engine state volume
  */
 export async function saveDaggerCache(
-    daggerVersion: string,
-    cacheVersion: string = DEFAULT_CACHE_VERSION,
+    cacheKeyInput?: string,
     timeoutMinutes: number = 10
 ): Promise<void> {
     core.info("💾 Saving Dagger Engine cache...");
@@ -153,7 +170,8 @@ export async function saveDaggerCache(
             const stats = fs.statSync(cachePath);
             core.info(`📊 Archive size: ${(stats.size / 1024 / 1024).toFixed(2)} MB`);
 
-            const key = getCacheKey(daggerVersion, cacheVersion);
+            // Use the primary unique key for saving
+            const key = getCacheKey(cacheKeyInput);
             core.info(`Uploading to cache with key: ${key}`);
             await cache.saveCache([cachePath], key);
             core.info("✓ Cache saved");

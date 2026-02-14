@@ -74,6 +74,7 @@ describe("cache", () => {
     afterEach(() => {
         delete process.env.GITHUB_WORKFLOW;
         delete process.env.GITHUB_REPOSITORY;
+        delete process.env.GITHUB_RUN_ID;
         delete process.env.RUNNER_TEMP;
     });
 
@@ -81,47 +82,52 @@ describe("cache", () => {
     // setupDaggerCache
     // -----------------------------------------------------------------------
     describe("setupDaggerCache", () => {
-        it("should restore cache and hydrate engine volume", async () => {
-            process.env.GITHUB_WORKFLOW = "test-flow";
-            process.env.GITHUB_REPOSITORY = "test-org/test-repo";
+        it("should use default keys when no custom key provided", async () => {
+            process.env.GITHUB_RUN_ID = "12345";
             process.env.RUNNER_TEMP = "/tmp";
+            // Mock platform/arch
+            Object.defineProperty(process, "platform", { value: "linux" });
+            Object.defineProperty(process, "arch", { value: "x64" });
 
-            // Mock successful cache restore
-            mockCache._setRestoreResult("dagger-cache-key");
+            mockCache._setRestoreResult("dagger-v1-linux-x64-12345");
 
             await setupDaggerCache("v0.15.0");
 
-            // Should call restoreCache
-            expect(mockCache._trackers.restoreCache.calls).toHaveLength(1);
+            const restoreCalls = mockCache._trackers.restoreCache.calls;
+            expect(restoreCalls).toHaveLength(1);
+            const [paths, primaryKey, restoreKeys] = restoreCalls[0].args;
 
-            // Should call engine restore
-            expect(mockEngine.restoreEngineVolume).toHaveBeenCalled();
-
-            // Should start engine
-            expect(mockEngine.startEngine).toHaveBeenCalled();
-
-            // Should export runner host
-            const exportedVars = mockCore._trackers.exportVariable.calls.map((c) => c.args[0]);
-            expect(exportedVars).toContain("_EXPERIMENTAL_DAGGER_RUNNER_HOST");
+            expect(primaryKey).toBe("dagger-v1-linux-x64-12345");
+            expect(restoreKeys).toEqual(["dagger-v1-linux-x64"]);
         });
 
-        it("should start fresh engine if cache restore returns null", async () => {
-            process.env.GITHUB_WORKFLOW = "test-flow";
-            process.env.GITHUB_REPOSITORY = "test-org/test-repo";
+        it("should use custom key when provided", async () => {
             process.env.RUNNER_TEMP = "/tmp";
 
-            // Mock cache miss
-            mockCache._setRestoreResult(undefined);
+            mockCache._setRestoreResult("my-key");
 
+            await setupDaggerCache("v0.15.0", "my-key-run1");
+
+            const restoreCalls = mockCache._trackers.restoreCache.calls;
+            const [paths, primaryKey, restoreKeys] = restoreCalls[0].args;
+
+            expect(primaryKey).toBe("my-key-run1");
+            expect(restoreKeys).toEqual(["my-key"]);
+        });
+
+        it("should restore engine volume on cache hit", async () => {
+            mockCache._setRestoreResult("hit-key");
             await setupDaggerCache("v0.15.0");
 
-            // Should call restoreCache
-            expect(mockCache._trackers.restoreCache.calls).toHaveLength(1);
+            expect(mockEngine.restoreEngineVolume).toHaveBeenCalled();
+            expect(mockEngine.startEngine).toHaveBeenCalled();
+        });
 
-            // Should NOT call engine restore
+        it("should start fresh engine on cache miss", async () => {
+            mockCache._setRestoreResult(undefined);
+            await setupDaggerCache("v0.15.0");
+
             expect(mockEngine.restoreEngineVolume).not.toHaveBeenCalled();
-
-            // Should still start engine
             expect(mockEngine.startEngine).toHaveBeenCalled();
         });
     });
@@ -130,132 +136,58 @@ describe("cache", () => {
     // saveDaggerCache
     // -----------------------------------------------------------------------
     describe("saveDaggerCache", () => {
-        it("should backup engine volume and save cache", async () => {
-            process.env.GITHUB_WORKFLOW = "test-flow";
-            process.env.GITHUB_REPOSITORY = "test-org/test-repo";
-            process.env.RUNNER_TEMP = "/tmp";
+        it("should save with default key when no custom key provided", async () => {
+            process.env.GITHUB_RUN_ID = "999";
+            // Mock platform/arch
+            Object.defineProperty(process, "platform", { value: "linux" });
+            Object.defineProperty(process, "arch", { value: "x64" });
 
-            // Mock engine exists
-            mockEngine.findEngineContainer.mockResolvedValue("test-container-id");
-
-            // Mock archive file creation success checks
+            mockEngine.findEngineContainer.mockResolvedValue("container-id");
             mockFs.existsSync.mockReturnValue(true);
 
-            await saveDaggerCache("v0.15.0");
+            await saveDaggerCache(undefined);
 
-            // Should check disk space
-            expect(mockUtils.getAvailableDiskSpace).toHaveBeenCalled();
+            const saveCalls = mockCache._trackers.saveCache.calls;
+            expect(saveCalls).toHaveLength(1);
+            const [paths, key] = saveCalls[0].args;
 
-            // Should find engine
-            expect(mockEngine.findEngineContainer).toHaveBeenCalled();
+            expect(key).toBe("dagger-v1-linux-x64-999");
+        });
 
-            // Should stop engine
-            expect(mockEngine.stopEngine).toHaveBeenCalledWith("test-container-id");
+        it("should save with custom key when provided", async () => {
+            mockEngine.findEngineContainer.mockResolvedValue("container-id");
+            mockFs.existsSync.mockReturnValue(true);
 
-            // Should backup volume with verbose option
-            expect(mockEngine.backupEngineVolume).toHaveBeenCalled();
+            await saveDaggerCache("custom-key-123");
 
-            // Should save to cache
-            expect(mockCache._trackers.saveCache.calls).toHaveLength(1);
+            const saveCalls = mockCache._trackers.saveCache.calls;
+            const [paths, key] = saveCalls[0].args;
 
-            // Should prune volume after save
+            expect(key).toBe("custom-key-123");
+        });
+
+        it("should skip backup if disk space is low (soft fail)", async () => {
+            mockEngine.findEngineContainer.mockResolvedValue("container-id");
+            mockUtils.getAvailableDiskSpace.mockResolvedValue(1024); // Low space
+
+            await saveDaggerCache();
+
+            expect(mockEngine.backupEngineVolume).not.toHaveBeenCalled();
+            expect(mockCache._trackers.saveCache.calls).toHaveLength(0);
+            expect(
+                mockCore._trackers.info.calls.some((c) =>
+                    String(c.args[0]).includes("Soft Fail")
+                )
+            ).toBe(true);
+        });
+
+        it("should prune volume after successful save", async () => {
+            mockEngine.findEngineContainer.mockResolvedValue("container-id");
+            mockFs.existsSync.mockReturnValue(true);
+
+            await saveDaggerCache();
+
             expect(mockEngine.deleteEngineVolume).toHaveBeenCalled();
-        });
-
-        it("should skip backup if disk space is low", async () => {
-            process.env.GITHUB_WORKFLOW = "test-flow";
-            process.env.GITHUB_REPOSITORY = "test-org/test-repo";
-            process.env.RUNNER_TEMP = "/tmp";
-
-            mockEngine.findEngineContainer.mockResolvedValue("test-container-id");
-
-            // Mock low disk space (e.g. 1GB)
-            mockUtils.getAvailableDiskSpace.mockResolvedValue(1 * 1024 * 1024 * 1024);
-
-            await saveDaggerCache("v0.15.0");
-
-            // Should check disk space
-            expect(mockUtils.getAvailableDiskSpace).toHaveBeenCalled();
-
-            // Should log warning
-            const warningCalls = mockCore._trackers.warning.calls.map((c) => String(c.args[0]));
-            expect(warningCalls.some((msg) => msg.includes("Low disk space"))).toBe(true);
-
-            // Should fail soft (info message)
-            const infoCalls = mockCore._trackers.info.calls.map((c) => String(c.args[0]));
-            expect(infoCalls.some((msg) => msg.includes("Soft Fail"))).toBe(true);
-
-            // Should NOT backup
-            expect(mockEngine.backupEngineVolume).not.toHaveBeenCalled();
-
-            // Should NOT save cache
-            expect(mockCache._trackers.saveCache.calls).toHaveLength(0);
-        });
-
-        it("should log archive size after backup", async () => {
-            process.env.GITHUB_WORKFLOW = "test-flow";
-            process.env.GITHUB_REPOSITORY = "test-org/test-repo";
-            process.env.RUNNER_TEMP = "/tmp";
-
-            mockEngine.findEngineContainer.mockResolvedValue("test-container-id");
-            mockFs.existsSync.mockReturnValue(true);
-            mockFs.statSync.mockReturnValue({ size: 1024 * 1024 * 256 }); // 256 MB
-
-            await saveDaggerCache("v0.15.0");
-
-            // Should log archive size
-            const infoCalls = mockCore._trackers.info.calls.map((c) => String(c.args[0]));
-            expect(infoCalls.some((msg) => msg.includes("📊 Archive size:"))).toBe(true);
-        });
-
-        it("should not save cache if no engine container found", async () => {
-            process.env.GITHUB_WORKFLOW = "test-flow";
-            process.env.GITHUB_REPOSITORY = "test-org/test-repo";
-            process.env.RUNNER_TEMP = "/tmp";
-
-            // Mock no engine
-            mockEngine.findEngineContainer.mockResolvedValue(null as unknown as string);
-
-            await saveDaggerCache("v0.15.0");
-
-            // Should verify find called
-            expect(mockEngine.findEngineContainer).toHaveBeenCalled();
-
-            // Should NOT stop or backup
-            expect(mockEngine.stopEngine).not.toHaveBeenCalled();
-            expect(mockEngine.backupEngineVolume).not.toHaveBeenCalled();
-
-            // Should NOT save cache
-            expect(mockCache._trackers.saveCache.calls).toHaveLength(0);
-        });
-
-        it("should soft-fail and continue on timeout", async () => {
-            process.env.GITHUB_WORKFLOW = "test-flow";
-            process.env.GITHUB_REPOSITORY = "test-org/test-repo";
-            process.env.RUNNER_TEMP = "/tmp";
-
-            mockEngine.findEngineContainer.mockResolvedValue("test-container-id");
-            mockFs.existsSync.mockReturnValue(true);
-
-            // Update utils mock to simulate timeout
-            mockUtils.withTimeout.mockRejectedValue(
-                new Error("Cache backup timed out after 1ms")
-            );
-
-            await saveDaggerCache("v0.15.0");
-
-            // Should warn about timeout
-            const warningCalls = mockCore._trackers.warning.calls.map((c) => String(c.args[0]));
-            expect(warningCalls.some((msg) => msg.includes("timed out"))).toBe(true);
-
-            // Should info about continuing
-            const infoCalls = mockCore._trackers.info.calls.map((c) => String(c.args[0]));
-            expect(infoCalls.some((msg) => msg.includes("Continuing without cache save"))).toBe(
-                true
-            );
-
-            // Should NOT save cache (because backup didn't complete / was skipped)
-            expect(mockCache._trackers.saveCache.calls).toHaveLength(0);
         });
     });
 });

@@ -28,6 +28,8 @@ function makeInputs(overrides: Partial<ActionInputs> = {}): ActionInputs {
         version: "v0.15.0",
         cacheBuilds: false,
         cacheBinary: false,
+        cacheKey: "",
+        cacheTimeoutMinutes: 10,
         commit: "",
         daggerFlags: "",
         verb: "",

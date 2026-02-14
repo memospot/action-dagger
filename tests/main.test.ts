@@ -228,7 +228,7 @@ describe("utils", () => {
             process.env.INPUT_VERSION = "v0.15.0";
             process.env.INPUT_CACHE_BUILDS = "true";
             process.env.INPUT_CACHE_BINARY = "false";
-            process.env.INPUT_CACHE_VERSION = "v3";
+            process.env.INPUT_CACHE_KEY = "my-key";
             process.env.INPUT_WORKDIR = "./my-app";
 
             const { parseInputs } = await import("../src/utils.js");
@@ -237,7 +237,7 @@ describe("utils", () => {
             expect(inputs.version).toBe("v0.15.0");
             expect(inputs.cacheBuilds).toBe(true);
             expect(inputs.cacheBinary).toBe(false);
-            expect(inputs.cacheVersion).toBe("v3");
+            expect(inputs.cacheKey).toBe("my-key");
             expect(inputs.workdir).toBe("./my-app");
         });
 

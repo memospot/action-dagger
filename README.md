@@ -64,7 +64,7 @@ An alternate GitHub Action for running [Dagger](https://dagger.io/) with better 
 | `version`                | Dagger CLI version (semver or 'latest')               | false    | 'latest'           |
 | `cache-builds`           | Enable Dagger build cache persistence                 | false    | true               |
 | `cache-binary`           | Cache Dagger binary to avoid re-downloading           | false    | true               |
-| `cache-version`          | Cache version for invalidation (change to clear cache)  | false    | 'v2'               |
+| `cache-key`              | Custom cache key (e.g. `foo-${{ github.run_id }}`)    | false    | ''                 |
 | `dagger-flags`           | Dagger CLI Flags                                      | false    | '--progress plain' |
 | `verb`                   | CLI verb (call, run, download, up, functions, shell)  | false    | 'call'             |
 | `workdir`                | Working directory for Dagger CLI                      | false    | '.'                |
@@ -98,30 +98,30 @@ The Dagger binary is cached using GitHub Actions tool-cache:
 ### Build Cache
 
 Dagger build cache persists the engine state volume to GitHub Actions Cache:
-- **Cache key**: `dagger-buildkit-<version>-<platform>-<dagger-version>-<repo>-<workflow>`
-- **Restore keys**:
-  - `dagger-buildkit-<version>-<platform>-<dagger-version>-<repo>-`
-  - `dagger-buildkit-<version>-<platform>-<dagger-version>-`
-- Cache is saved even on workflow failure for partial progress
-- Uses `_EXPERIMENTAL_DAGGER_RUNNER_HOST` to connect to cached engine
+- **Default Behavior**: "Rolling cache" strategy.
+  - **Save Key**: `dagger-v1-<os>-<arch>-<run_id>` (always unique, forcing a save)
+  - **Restore Key**: `dagger-v1-<os>-<arch>-` (matches most recent previous run)
+- This ensures that every run saves its state on top of the previous one, maximizing cache freshness.
 
-#### Cache Invalidation
+#### Custom Cache Keys
 
-Use `cache-version` to invalidate caches when needed:
+You can override the default key using `cache-key`. To maintain the rolling cache behavior (recommended), ensure your key ends with a unique component like `${{ github.run_id }}`.
 
 ```yaml
-- name: Run Dagger with cache invalidation
+- name: Run Dagger with custom key
   uses: memospot/action-dagger@v1
   with:
-    cache-version: 'v3'  # Bump to force fresh cache
+    # Use a custom prefix but keep the rolling behavior
+    cache-key: 'my-project-v2-${{ runner.os }}-${{ github.run_id }}'
     module: github.com/shykes/daggerverse/hello
     call: hello
 ```
 
-Common reasons to change cache version:
-- Corrupted cache data
-- Dagger engine state format changes
-- Debugging cache-related issues
+The action will automatically derive the restore key by stripping the last hyphen-delimited segment (e.g., `my-project-v2-${{ runner.os }}`).
+
+#### Cache Invalidation
+
+To invalidate the cache, simply change the prefix of your `cache-key` (e.g., from `v1` to `v2`). If using defaults, the action handles versioning internally.
 
 ## Migration Guide
 

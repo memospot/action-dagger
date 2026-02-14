@@ -9,7 +9,7 @@ export function parseInputs(): ActionInputs {
     const version = core.getInput("version") || "latest";
     const cacheBuilds = core.getBooleanInput("cache-builds");
     const cacheBinary = core.getBooleanInput("cache-binary");
-    const cacheVersion = core.getInput("cache-version") || "v2";
+    const cacheKey = core.getInput("cache-key");
     const cacheTimeoutMinutes = parseInt(core.getInput("cache-timeout-minutes") || "10", 10);
 
     // Legacy inputs
@@ -29,7 +29,7 @@ export function parseInputs(): ActionInputs {
         version,
         cacheBuilds,
         cacheBinary,
-        cacheVersion,
+        cacheKey,
         cacheTimeoutMinutes,
         commit,
         daggerFlags,
