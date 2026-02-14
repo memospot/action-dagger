@@ -44,14 +44,30 @@ export async function backupEngineVolume(
 ): Promise<void> {
     const isVerbose = options?.verbose ?? false;
 
+    // Check if volume exists
+    try {
+        await exec.exec("docker", ["volume", "inspect", volumeName], { silent: true });
+    } catch {
+        throw new Error(`Volume ${volumeName} does not exist`);
+    }
+
+    // Check if zstd is available
+    try {
+        await exec.exec("which", ["zstd"], { silent: true });
+    } catch {
+        throw new Error("zstd is not installed on this runner");
+    }
+
     // docker run --rm -v vol:/data alpine tar -C /data -cf - . | zstd -T0 -3 -o archivePath
     const cmd = `docker run --rm -v ${volumeName}:/data alpine tar -C /data -cf - . | zstd -T0 -3 -o ${archivePath}`;
 
-    if (isVerbose) {
-        core.info(`Running backup command: ${cmd}`);
-    }
+    core.info(`Running backup command: ${cmd}`);
 
-    await exec.exec("sh", ["-c", cmd], { silent: !isVerbose });
+    try {
+        await exec.exec("sh", ["-c", cmd], { silent: !isVerbose });
+    } catch (error) {
+        throw new Error(`Backup command failed: ${error}`);
+    }
 }
 
 /**

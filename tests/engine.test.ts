@@ -35,9 +35,17 @@ describe("Engine Lifecycle", () => {
             const calls = mockExec._trackers.exec.calls;
             expect(calls.length).toBeGreaterThan(0);
 
-            const command = calls[0].args[0] as string;
-            const args = calls[0].args[1] as string[];
-            const options = calls[0].args[2] as { silent?: boolean };
+            // First call should be "docker volume inspect"
+            expect(calls[0].args[0]).toBe("docker");
+            expect(calls[0].args[1]).toContain("volume");
+
+            // Second call should be "which zstd"
+            expect(calls[1].args[0]).toBe("which");
+
+            // Third call should be the backup command
+            const command = calls[2].args[0] as string;
+            const args = calls[2].args[1] as string[];
+            const options = calls[2].args[2] as { silent?: boolean };
 
             expect(command).toBe("sh");
             expect(args[0]).toBe("-c");
@@ -61,8 +69,13 @@ describe("Engine Lifecycle", () => {
             const calls = mockExec._trackers.exec.calls;
             expect(calls.length).toBeGreaterThan(0);
 
+            // Find the sh -c call (third call)
+            const shCall = calls.find((c) => c.args[0] === "sh");
+            expect(shCall).toBeDefined();
+            if (!shCall) return;
+
             // Should NOT be silent
-            const options = calls[0].args[2] as { silent?: boolean };
+            const options = shCall.args[2] as { silent?: boolean };
             expect(options?.silent).toBe(false);
         });
     });
