@@ -70,7 +70,7 @@ jobs:
           version: latest
           verb: core
           args: container from --address=alpine with-exec --args apk,add,--no-cache,zip stdout
-          cache-builds: true
+          cache-key: test-cache-${{ runner.os }}-${{ hashFiles('./dist/index.js') }}
           dagger-flags: "--progress plain"
 
       - name: "Verify First Run Logs"
@@ -85,7 +85,7 @@ jobs:
           version: latest
           verb: core
           args: container from --address=alpine with-exec --args apk,add,--no-cache,zip stdout
-          cache-builds: true
+          cache-key: test-cache-${{ runner.os }}-${{ hashFiles('./dist/index.js') }}
           dagger-flags: "--progress plain"
 
       - name: "Verify Warm Cache Used"
@@ -116,7 +116,7 @@ jobs:
           version: latest
           verb: core
           args: container from --address=alpine with-exec --args apk,add,--no-cache,zip stdout
-          cache-builds: true
+          cache-key: test-cache-${{ runner.os }}-${{ hashFiles('./dist/index.js') }}
           dagger-flags: "--progress plain"
 
       - name: "Verify Cache Saved"
@@ -144,7 +144,7 @@ jobs:
           version: latest
           verb: core
           args: container from --address=alpine with-exec --args apk,add,--no-cache,zip stdout
-          cache-builds: true
+          cache-key: test-cache-${{ runner.os }}-${{ hashFiles('./dist/index.js') }}
           dagger-flags: "--progress plain"
 
       - name: "Verify Cache Restored"
