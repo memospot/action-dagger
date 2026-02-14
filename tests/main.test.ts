@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
+import type { Stats } from "node:fs";
 import {
     mockCache,
     mockCore,
@@ -32,7 +33,7 @@ mock.module("node:fs", () => ({
     existsSync: () => true,
     mkdirSync: () => undefined,
     chmodSync: () => undefined,
-    statSync: () => ({ size: 1024 }) as any,
+    statSync: () => ({ size: 1024 }) as Stats,
 }));
 
 // Mock utils module
