@@ -47,10 +47,11 @@ describe("Engine Lifecycle", () => {
             const args = calls[2].args[1] as string[];
             const options = calls[2].args[2] as { silent?: boolean };
 
-            expect(command).toBe("sh");
+            expect(command).toBe("bash");
             expect(args[0]).toBe("-c");
 
             const shellCmd = args[1];
+            expect(shellCmd).toContain("set -o pipefail");
             expect(shellCmd).toContain("docker run");
             expect(shellCmd).toContain("alpine tar");
             expect(shellCmd).toContain("| zstd -T0 -3");
@@ -69,13 +70,13 @@ describe("Engine Lifecycle", () => {
             const calls = mockExec._trackers.exec.calls;
             expect(calls.length).toBeGreaterThan(0);
 
-            // Find the sh -c call (third call)
-            const shCall = calls.find((c) => c.args[0] === "sh");
-            expect(shCall).toBeDefined();
-            if (!shCall) return;
+            // Find the bash -c call (third call)
+            const bashCall = calls.find((c) => c.args[0] === "bash");
+            expect(bashCall).toBeDefined();
+            if (!bashCall) return;
 
             // Should NOT be silent
-            const options = shCall.args[2] as { silent?: boolean };
+            const options = bashCall.args[2] as { silent?: boolean };
             expect(options?.silent).toBe(false);
         });
     });

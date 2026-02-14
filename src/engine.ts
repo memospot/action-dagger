@@ -59,14 +59,24 @@ export async function backupEngineVolume(
     }
 
     // docker run --rm -v vol:/data alpine tar -C /data -cf - . | zstd -T0 -3 -o archivePath
-    const cmd = `docker run --rm -v ${volumeName}:/data alpine tar -C /data -cf - . | zstd -T0 -3 -o ${archivePath}`;
+    // Use pipefail to catch errors in any part of the pipeline
+    const cmd = `set -o pipefail && docker run --rm -v ${volumeName}:/data alpine tar -C /data -cf - . | zstd -T0 -3 -o ${archivePath}`;
 
     core.info(`Running backup command: ${cmd}`);
 
+    let stderr = "";
     try {
-        await exec.exec("sh", ["-c", cmd], { silent: !isVerbose });
+        await exec.exec("bash", ["-c", cmd], {
+            silent: !isVerbose,
+            listeners: {
+                stderr: (data: Buffer) => {
+                    stderr += data.toString();
+                },
+            },
+        });
     } catch (error) {
-        throw new Error(`Backup command failed: ${error}`);
+        const errorMsg = stderr ? `Error output: ${stderr}` : "";
+        throw new Error(`Backup command failed: ${error}. ${errorMsg}`);
     }
 }
 
