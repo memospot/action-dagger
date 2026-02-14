@@ -11,6 +11,8 @@ export function parseInputs(): ActionInputs {
     const cacheBinary = core.getBooleanInput("cache-binary");
     const cacheKey = core.getInput("cache-key");
     const cacheTimeoutMinutes = parseInt(core.getInput("cache-timeout-minutes") || "10", 10);
+    const cacheCompressionRaw = parseInt(core.getInput("cache-compression") || "0", 10);
+    const cacheCompression = Math.max(0, Math.min(19, cacheCompressionRaw));
 
     // Legacy inputs
     const commit = core.getInput("commit");
@@ -31,6 +33,7 @@ export function parseInputs(): ActionInputs {
         cacheBinary,
         cacheKey,
         cacheTimeoutMinutes,
+        cacheCompression,
         commit,
         daggerFlags,
         verb,

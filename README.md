@@ -37,6 +37,17 @@ An alternate GitHub Action for running [Dagger](https://dagger.io/) with better 
     call: hello
 ```
 
+### With Custom Cache Compression
+
+```yaml
+- name: Run Dagger with high compression
+  uses: memospot/action-dagger@v1
+  with:
+    cache-compression: '3' # May help if your runner is running low on disk space, but it will take much longer to save.
+    module: github.com/shykes/daggerverse/hello
+    call: hello
+```
+
 ### dagger shell
 
 ```yaml
@@ -65,6 +76,8 @@ An alternate GitHub Action for running [Dagger](https://dagger.io/) with better 
 | `cache-builds`           | Enable Dagger build cache persistence                 | false    | true               |
 | `cache-binary`           | Cache Dagger binary to avoid re-downloading           | false    | true               |
 | `cache-key`              | Custom cache key (e.g. `foo-${{ github.run_id }}`)    | false    | ''                 |
+| `cache-compression`      | Compression level: 0=fastest (tar), 1-19=zstd         | false    | '0'                |
+| `cache-timeout-minutes`  | Timeout for cache save/restore (0=disable)            | false    | '10'               |
 | `dagger-flags`           | Dagger CLI Flags                                      | false    | '--progress plain' |
 | `verb`                   | CLI verb (call, run, download, up, functions, shell)  | false    | 'call'             |
 | `workdir`                | Working directory for Dagger CLI                      | false    | '.'                |

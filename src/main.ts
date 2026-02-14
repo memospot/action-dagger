@@ -22,13 +22,18 @@ export async function run(): Promise<void> {
 
         // Setup Dagger build cache if enabled
         if (inputs.cacheBuilds) {
-            // Pass the resolved version and cache key to setup cache
-            await setupDaggerCache(binaryInfo.version, inputs.cacheKey);
+            // Pass the resolved version, cache key, and compression level to setup cache
+            await setupDaggerCache(
+                binaryInfo.version,
+                inputs.cacheKey,
+                inputs.cacheCompression
+            );
         }
 
-        // Save resolved version and cache key for post-action cache saving
+        // Save resolved version, cache key, and compression level for post-action cache saving
         core.saveState("DAGGER_VERSION", binaryInfo.version);
         core.saveState("CACHE_KEY", inputs.cacheKey || "");
+        core.saveState("CACHE_COMPRESSION", inputs.cacheCompression.toString());
 
         // Execute dagger command if inputs provided
         const execResult = await executeDaggerCommand(inputs, binaryInfo.path);
@@ -77,10 +82,15 @@ export async function post(): Promise<void> {
         if (inputs.cacheBuilds) {
             core.info("Build cache is enabled, proceeding to save...");
 
-            // Get resolved cache key from state
+            // Get resolved cache key and compression level from state
             const cacheKey = core.getState("CACHE_KEY") || inputs.cacheKey;
+            const compressionLevelStr = core.getState("CACHE_COMPRESSION");
+            const compressionLevel =
+                compressionLevelStr !== ""
+                    ? parseInt(compressionLevelStr, 10)
+                    : inputs.cacheCompression;
 
-            await saveDaggerCache(cacheKey, inputs.cacheTimeoutMinutes);
+            await saveDaggerCache(cacheKey, inputs.cacheTimeoutMinutes, compressionLevel);
             core.info("✅ Dagger build cache save completed");
         } else {
             core.info("Build cache disabled, skipping save");

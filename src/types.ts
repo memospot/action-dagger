@@ -12,6 +12,8 @@ export interface ActionInputs {
     cacheKey?: string;
     /** Timeout in minutes for cache operations */
     cacheTimeoutMinutes: number;
+    /** Compression level for cache (0-19). 0 = plain tar, 1-19 = zstd level */
+    cacheCompression: number;
     commit: string;
     daggerFlags: string;
     verb: string;

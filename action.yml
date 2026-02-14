@@ -32,6 +32,15 @@ inputs:
     required: false
     default: "10"
 
+  cache-compression:
+    description: |
+      Compression level for cache (0-19).
+
+      -    0 = plain tar (fastest, handled by @actions/cache)
+      - 1-19 = zstd compression level. Higher = smaller but slower.
+    required: false
+    default: "0"
+
   commit:
     description: "Dagger Dev Commit (deprecated)"
     required: false
@@ -67,11 +76,6 @@ inputs:
     description: "Arguments to pass to CLI"
     required: false
     default: ""
-
-  engine-stop:
-    description: "Deprecated"
-    required: false
-    deprecationMessage: "engine-stop is now a no-op and will be removed in a future release"
 
   call:
     description: "Function and arguments for dagger call"

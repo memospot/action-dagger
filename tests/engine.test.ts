@@ -25,11 +25,49 @@ describe("Engine Lifecycle", () => {
     });
 
     describe("backupEngineVolume", () => {
-        it("should pipe tar to zstd", async () => {
-            // Bypass mock/cache by appending query param
-
+        it("should create plain tar archive when compressionLevel is 0", async () => {
             const engine = await import(`../src/engine.js?bust=${Date.now()}-1`);
-            await engine.backupEngineVolume("vol-name", "/tmp/archive.tar.zst");
+            await engine.backupEngineVolume("vol-name", "/tmp/archive.tar", {
+                compressionLevel: 0,
+            });
+
+            // Verify exec arguments
+            const calls = mockExec._trackers.exec.calls;
+            expect(calls.length).toBeGreaterThan(0);
+
+            // First call should be "docker volume inspect"
+            expect(calls[0].args[0]).toBe("docker");
+            expect(calls[0].args[1]).toContain("volume");
+
+            // Should NOT check for zstd (level 0 uses plain tar)
+            const whichCalls = calls.filter((c) => c.args[0] === "which");
+            expect(whichCalls.length).toBe(0);
+
+            // Second call should be the backup command (bash)
+            const command = calls[1].args[0] as string;
+            const args = calls[1].args[1] as string[];
+            const options = calls[1].args[2] as { silent?: boolean };
+
+            expect(command).toBe("bash");
+            expect(args[0]).toBe("-c");
+
+            const shellCmd = args[1];
+            expect(shellCmd).toContain("set -o pipefail");
+            expect(shellCmd).toContain("docker run");
+            expect(shellCmd).toContain("alpine tar");
+            expect(shellCmd).toContain("> /tmp/archive.tar");
+            // Should NOT contain zstd
+            expect(shellCmd).not.toContain("zstd");
+
+            // Should be silent by default (!verbose)
+            expect(options?.silent).toBe(true);
+        });
+
+        it("should pipe tar to zstd when compressionLevel is > 0", async () => {
+            const engine = await import(`../src/engine.js?bust=${Date.now()}-2`);
+            await engine.backupEngineVolume("vol-name", "/tmp/archive.tar.zst", {
+                compressionLevel: 3,
+            });
 
             // Verify exec arguments
             const calls = mockExec._trackers.exec.calls;
@@ -62,15 +100,16 @@ describe("Engine Lifecycle", () => {
         });
 
         it("should log command when verbose is true", async () => {
-            const engine = await import(`../src/engine.js?bust=${Date.now()}-2`);
+            const engine = await import(`../src/engine.js?bust=${Date.now()}-3`);
             await engine.backupEngineVolume("vol-name", "/tmp/archive.tar.zst", {
                 verbose: true,
+                compressionLevel: 3,
             });
 
             const calls = mockExec._trackers.exec.calls;
             expect(calls.length).toBeGreaterThan(0);
 
-            // Find the bash -c call (third call)
+            // Find the bash -c call
             const bashCall = calls.find((c) => c.args[0] === "bash");
             expect(bashCall).toBeDefined();
             if (!bashCall) return;
@@ -82,8 +121,8 @@ describe("Engine Lifecycle", () => {
     });
 
     describe("restoreEngineVolume", () => {
-        it("should pipe zstd to tar", async () => {
-            const engine = await import(`../src/engine.js?bust=${Date.now()}-3`);
+        it("should restore from zstd compressed archive", async () => {
+            const engine = await import(`../src/engine.js?bust=${Date.now()}-4`);
             await engine.restoreEngineVolume("vol-name", "/tmp/archive.tar.zst");
 
             // Expect volume create + restore command
@@ -104,6 +143,29 @@ describe("Engine Lifecycle", () => {
             expect(shellCmd).toContain("docker run");
             expect(shellCmd).toContain("-i"); // Crucial flag
             expect(shellCmd).toContain("tar -C /data -xf -");
+        });
+
+        it("should restore from plain tar archive", async () => {
+            const engine = await import(`../src/engine.js?bust=${Date.now()}-5`);
+            await engine.restoreEngineVolume("vol-name", "/tmp/archive.tar");
+
+            // Expect volume create + restore command
+            const calls = mockExec._trackers.exec.calls;
+            expect(calls.length).toBeGreaterThan(1); // Volume create is first
+
+            // Find the restore command (sh -c)
+            const restoreCall = calls.find((c) => c.args[0] === "sh");
+            expect(restoreCall).toBeDefined();
+
+            if (!restoreCall) return;
+
+            const args = restoreCall.args[1] as string[];
+            const shellCmd = args[1];
+
+            // Plain tar should NOT use zstd
+            expect(shellCmd).not.toContain("zstd");
+            expect(shellCmd).toContain("docker run");
+            expect(shellCmd).toContain("tar -C /data -xf");
         });
     });
 });

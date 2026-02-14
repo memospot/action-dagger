@@ -6,15 +6,20 @@ import * as engine from "./engine.js";
 import { getAvailableDiskSpace, withTimeout } from "./utils.js";
 
 const DAGGER_ENGINE_VOLUME = "dagger-engine-vol";
-const CACHE_ARCHIVE_NAME = "dagger-engine-state.tar.zst";
+const CACHE_ARCHIVE_NAME_ZSTD = "dagger-engine-state.tar.zst";
+const CACHE_ARCHIVE_NAME_TAR = "dagger-engine-state.tar";
 const DEFAULT_CACHE_PREFIX = "dagger-v1";
 
 /**
  * Get the path where we store the cache archive
+ * @param compressionLevel - Compression level (0 = plain tar, 1-19 = zstd)
+ * @returns Full path to the archive file with appropriate extension
  */
-function getCacheArchivePath(): string {
+function getCacheArchivePath(compressionLevel: number): string {
     const tempDir = process.env.RUNNER_TEMP || "/tmp";
-    return path.join(tempDir, CACHE_ARCHIVE_NAME);
+    const archiveName =
+        compressionLevel === 0 ? CACHE_ARCHIVE_NAME_TAR : CACHE_ARCHIVE_NAME_ZSTD;
+    return path.join(tempDir, archiveName);
 }
 
 /**
@@ -50,11 +55,12 @@ function getRestoreKeys(key: string): string[] {
  */
 export async function setupDaggerCache(
     daggerVersion: string,
-    cacheKeyInput?: string
+    cacheKeyInput?: string,
+    compressionLevel = 0
 ): Promise<void> {
     core.info("🗡️ Setting up Dagger Engine cache...");
 
-    const cachePath = getCacheArchivePath();
+    const cachePath = getCacheArchivePath(compressionLevel);
     // Verify directory exists (it should, as getCacheArchivePath uses RUNNER_TEMP)
     const cacheDir = path.dirname(cachePath);
     if (!fs.existsSync(cacheDir)) {
@@ -114,9 +120,12 @@ export async function setupDaggerCache(
  */
 export async function saveDaggerCache(
     cacheKeyInput?: string,
-    timeoutMinutes: number = 10
+    timeoutMinutes: number = 10,
+    compressionLevel = 0
 ): Promise<void> {
     core.info("💾 Saving Dagger Engine cache...");
+
+    let cachePath = "";
 
     try {
         // 1. Identify engine
@@ -131,10 +140,10 @@ export async function saveDaggerCache(
         core.info(`Stopping engine container ${containerId}...`);
         await engine.stopEngine(containerId);
 
-        // 3. Backup volume with optional timeout
-        const cachePath = getCacheArchivePath();
+        // 3. Determine archive path based on compression level
+        cachePath = getCacheArchivePath(compressionLevel);
 
-        // 3. Check disk space
+        // 4. Check disk space
         // We require at least 3GB of free space to perform the backup safely.
         // This is a conservative estimate to handle the compressed volume and avoid failing the workflow.
         const availableSpace = await getAvailableDiskSpace(path.dirname(cachePath));
@@ -148,13 +157,17 @@ export async function saveDaggerCache(
             return;
         }
 
-        core.info("📦 Extracting engine volume to archive (zstd streamed)...");
+        core.info(
+            `📦 Extracting engine volume to archive (compression level ${compressionLevel})...`
+        );
 
+        // 5. Backup volume with optional timeout
         if (timeoutMinutes > 0) {
             const timeoutMs = timeoutMinutes * 60 * 1000;
             await withTimeout(
                 engine.backupEngineVolume(DAGGER_ENGINE_VOLUME, cachePath, {
                     verbose: core.isDebug(),
+                    compressionLevel,
                 }),
                 timeoutMs,
                 "Cache backup"
@@ -162,10 +175,11 @@ export async function saveDaggerCache(
         } else {
             await engine.backupEngineVolume(DAGGER_ENGINE_VOLUME, cachePath, {
                 verbose: core.isDebug(),
+                compressionLevel,
             });
         }
 
-        // 4. Save to GHA cache
+        // 6. Save to GHA cache
         if (fs.existsSync(cachePath)) {
             const stats = fs.statSync(cachePath);
             core.info(`📊 Archive size: ${(stats.size / 1024 / 1024).toFixed(2)} MB`);
@@ -176,7 +190,7 @@ export async function saveDaggerCache(
             await cache.saveCache([cachePath], key);
             core.info("✓ Cache saved");
 
-            // 5. Prune volume to free space
+            // 7. Prune volume to free space
             core.info("🧹 Pruning engine volume...");
             await engine.deleteEngineVolume(DAGGER_ENGINE_VOLUME);
             core.info("✓ Volume pruned");
@@ -190,5 +204,15 @@ export async function saveDaggerCache(
             return;
         }
         core.warning(`Failed to save cache: ${error}`);
+    } finally {
+        // Always clean up the archive file to prevent disk space accumulation
+        if (cachePath && fs.existsSync(cachePath)) {
+            try {
+                fs.unlinkSync(cachePath);
+                core.debug(`Cleaned up archive file: ${cachePath}`);
+            } catch (cleanupError) {
+                core.debug(`Failed to clean up archive file: ${cleanupError}`);
+            }
+        }
     }
 }
