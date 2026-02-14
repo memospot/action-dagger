@@ -60,6 +60,14 @@ export async function setupDaggerCache(
             core.info("📦 Hydrating Dagger Engine volume from cache...");
             await engine.restoreEngineVolume(DAGGER_ENGINE_VOLUME, cachePath);
             core.info("✓ Engine volume hydrated");
+
+            // Clean up the archive file to free space and avoid conflicts
+            try {
+                fs.unlinkSync(cachePath);
+                core.debug("Cleaned up cache archive file");
+            } catch {
+                // Ignore cleanup errors
+            }
         } else {
             core.info("No cache found, starting with fresh engine volume");
         }
