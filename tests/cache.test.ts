@@ -95,7 +95,7 @@ describe("cache", () => {
 
             const restoreCalls = mockCache._trackers.restoreCache.calls;
             expect(restoreCalls).toHaveLength(1);
-            const [paths, primaryKey, restoreKeys] = restoreCalls[0].args;
+            const [_paths, primaryKey, restoreKeys] = restoreCalls[0].args;
 
             expect(primaryKey).toBe("dagger-v1-linux-x64-12345");
             expect(restoreKeys).toEqual(["dagger-v1-linux-x64"]);
@@ -109,7 +109,7 @@ describe("cache", () => {
             await setupDaggerCache("v0.15.0", "my-key-run1");
 
             const restoreCalls = mockCache._trackers.restoreCache.calls;
-            const [paths, primaryKey, restoreKeys] = restoreCalls[0].args;
+            const [_paths, primaryKey, restoreKeys] = restoreCalls[0].args;
 
             expect(primaryKey).toBe("my-key-run1");
             expect(restoreKeys).toEqual(["my-key"]);
@@ -149,7 +149,7 @@ describe("cache", () => {
 
             const saveCalls = mockCache._trackers.saveCache.calls;
             expect(saveCalls).toHaveLength(1);
-            const [paths, key] = saveCalls[0].args;
+            const [_paths, key] = saveCalls[0].args;
 
             expect(key).toBe("dagger-v1-linux-x64-999");
         });
@@ -161,7 +161,7 @@ describe("cache", () => {
             await saveDaggerCache("custom-key-123");
 
             const saveCalls = mockCache._trackers.saveCache.calls;
-            const [paths, key] = saveCalls[0].args;
+            const [_paths, key] = saveCalls[0].args;
 
             expect(key).toBe("custom-key-123");
         });
