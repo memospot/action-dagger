@@ -81,7 +81,7 @@ export async function post(): Promise<void> {
         core.info(`cache-builds input: ${inputs.cacheBuilds}`);
 
         if (inputs.cacheBuilds) {
-            core.info("Build cache is enabled, proceeding to save...");
+            core.info("Build cache is enabled, proceeding to save…");
 
             // Get resolved cache key and compression level from state
             const cacheKey = core.getState("CACHE_KEY") || inputs.cacheKey;

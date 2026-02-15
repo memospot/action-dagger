@@ -10,6 +10,12 @@ on:
       - reopened
       - ready_for_review
   workflow_dispatch:
+    inputs:
+      debug:
+        description: "Enable ACTIONS_STEP_DEBUG"
+        required: false
+        default: false
+        type: boolean
 
 concurrency:
   cancel-in-progress: true
@@ -18,6 +24,9 @@ concurrency:
 permissions:
   contents: read
   pull-requests: write
+
+env:
+  ACTIONS_STEP_DEBUG: ${{ inputs.debug || false }}
 
 jobs:
   build:

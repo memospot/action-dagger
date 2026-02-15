@@ -29,7 +29,7 @@ export async function executeDaggerCommand(
         };
     }
 
-    logInfo("Executing Dagger command...");
+    logInfo("Executing Dagger command…");
 
     // Assemble the command arguments
     const commandArgs = assembleCommand(inputs);

@@ -51,7 +51,7 @@ export async function getBinary(inputs: ActionInputs): Promise<BinaryInfo> {
     }
 
     // Download and install
-    logInfo(`Downloading Dagger ${version}...`);
+    logInfo(`Downloading Dagger ${version}…`);
     const binaryInfo = await downloadAndInstall(version, platform, !!inputs.commit);
 
     // Cache the binary if enabled
@@ -140,7 +140,7 @@ async function downloadAndInstall(
         }
 
         logWarning(`Primary download failed: ${primaryError}`);
-        logInfo(`Attempting fallback download from GitHub releases...`);
+        logInfo(`Attempting fallback download from GitHub releases…`);
 
         try {
             // Check for GITHUB_TOKEN for authenticated requests

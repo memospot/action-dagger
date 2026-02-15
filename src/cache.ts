@@ -60,7 +60,7 @@ export async function setupDaggerCache(
     compressionLevel = 0
 ): Promise<void> {
     const startTime = Date.now();
-    core.info("🗡️ Setting up Dagger Engine cache...");
+    core.info("🗡️ Setting up Dagger Engine cache…");
     core.debug(`lifecycle:cache:setup:start version=${daggerVersion}`);
 
     const cachePath = getCacheArchivePath(compressionLevel);
@@ -83,8 +83,15 @@ export async function setupDaggerCache(
         if (restoredKey) {
             core.info(`✓ Restored engine cache archive from key: ${restoredKey}`);
 
+            // Track which key was restored so we can skip save if the same key would be used
+            // GitHub Actions caches are immutable - saving with the same key would fail
+            core.saveState("CACHE_RESTORED_KEY", restoredKey);
+            core.debug(
+                `Cache restored with key: ${restoredKey} - save will be skipped if same key`
+            );
+
             // Restore volume from archive
-            core.info("📦 Hydrating Dagger Engine volume from cache...");
+            core.info("📦 Hydrating Dagger Engine volume from cache…");
             await engine.restoreEngineVolume(DAGGER_ENGINE_VOLUME, cachePath);
             core.info("✓ Engine volume hydrated");
 
@@ -103,7 +110,7 @@ export async function setupDaggerCache(
     }
 
     // Always start the engine with our volume (empty or hydrated)
-    core.info(`🚀 Starting Dagger Engine (${daggerVersion})...`);
+    core.info(`🚀 Starting Dagger Engine (${daggerVersion})…`);
     try {
         await engine.startEngine(DAGGER_ENGINE_VOLUME, daggerVersion);
 
@@ -130,8 +137,20 @@ export async function saveDaggerCache(
     compressionLevel = 0
 ): Promise<void> {
     const startTime = Date.now();
-    core.info("💾 Saving Dagger Engine cache...");
+    core.info("💾 Saving Dagger Engine cache…");
     core.debug(`lifecycle:cache:save:start`);
+
+    // Check if we restored from cache with the same key we would save to
+    // GitHub Actions caches are immutable - saving with the same key would fail
+    const restoredKey = core.getState("CACHE_RESTORED_KEY");
+    const keyToSave = getCacheKey(cacheKeyInput);
+    if (restoredKey && restoredKey === keyToSave) {
+        core.info(
+            `Cache already exists for key "${keyToSave}" - skipping save (cache is immutable)`
+        );
+        core.debug(`lifecycle:cache:save:skipped reason=cache_exists key=${keyToSave}`);
+        return;
+    }
 
     let cachePath = "";
 
@@ -145,7 +164,7 @@ export async function saveDaggerCache(
         }
 
         // 2. Stop engine to ensure consistent state
-        core.info(`Stopping engine container ${containerId}...`);
+        core.info(`Stopping engine container ${containerId}…`);
         await engine.stopEngine(containerId);
 
         // 3. Determine archive path based on compression level
@@ -166,7 +185,7 @@ export async function saveDaggerCache(
         }
 
         core.info(
-            `📦 Extracting engine volume to archive (compression level ${compressionLevel})...`
+            `📦 Extracting engine volume to archive (compression level ${compressionLevel})…`
         );
 
         // 5. Backup volume with optional timeout
@@ -199,7 +218,7 @@ export async function saveDaggerCache(
             core.info("✓ Cache saved");
 
             // 7. Prune volume to free space
-            core.info("🧹 Pruning engine volume...");
+            core.info("🧹 Pruning engine volume…");
             await engine.deleteEngineVolume(DAGGER_ENGINE_VOLUME);
             core.info("✓ Volume pruned");
         } else {
