@@ -147,7 +147,7 @@ export async function saveDaggerCache(
     timeoutMinutes: number = 10,
     compressionLevel = 0
 ): Promise<void> {
-    const startTime = Date.now();
+    const totalStartTime = Date.now();
     core.info("💾 Saving Dagger Engine cache…");
     core.debug(`lifecycle:cache:save:start`);
 
@@ -167,7 +167,10 @@ export async function saveDaggerCache(
 
     try {
         // 1. Identify engine
+        const step1Start = Date.now();
         const containerId = await engine.findEngineContainer();
+        const step1Duration = Date.now() - step1Start;
+        core.info(`⏱️ Step 'find engine container' completed in ${step1Duration}ms`);
 
         if (!containerId) {
             core.info("No Dagger Engine container found to cache.");
@@ -175,8 +178,11 @@ export async function saveDaggerCache(
         }
 
         // 2. Stop engine to ensure consistent state
+        const step2Start = Date.now();
         core.info(`Stopping engine container ${containerId}…`);
         await engine.stopEngine(containerId);
+        const step2Duration = Date.now() - step2Start;
+        core.info(`⏱️ Step 'stop engine container' completed in ${step2Duration}ms`);
 
         // 3. Determine archive path based on compression level
         cachePath = getCacheArchivePath(compressionLevel);
@@ -202,11 +208,12 @@ export async function saveDaggerCache(
             return;
         }
 
+        // 5. Backup volume with optional timeout
+        const step5Start = Date.now();
         core.info(
             `📦 Extracting engine volume to archive (compression level ${compressionLevel})…`
         );
 
-        // 5. Backup volume with optional timeout
         if (timeoutMinutes > 0) {
             const timeoutMs = timeoutMinutes * 60 * 1000;
             await withTimeout(
@@ -223,29 +230,56 @@ export async function saveDaggerCache(
                 compressionLevel,
             });
         }
+        const step5Duration = Date.now() - step5Start;
+        core.info(`⏱️ Step 'create tar archive' completed in ${step5Duration}ms`);
 
-        // 6. Save to GHA cache
-        if (fs.existsSync(cachePath)) {
-            const stats = fs.statSync(cachePath);
-            core.info(`📊 Archive size: ${formatBytes(stats.size)}`);
-
-            // Use the primary unique key for saving
-            const key = getCacheKey(cacheKeyInput);
-            core.info(`Uploading to cache with key: ${key}`);
-            await cache.saveCache([cachePath], key);
-            core.info("✓ Cache saved");
-
-            // 7. Log disk space after save
-            const availableSpaceAfter = await getAvailableDiskSpace(path.dirname(cachePath));
-            core.info(`💾 Free disk space after save: ${formatBytes(availableSpaceAfter)}`);
-
-            // 8. Prune volume to free space
-            core.info("🧹 Pruning engine volume…");
-            await engine.deleteEngineVolume(DAGGER_ENGINE_VOLUME);
-            core.info("✓ Volume pruned");
-        } else {
+        // Check if archive was created and get its size
+        if (!fs.existsSync(cachePath)) {
             core.warning("Archive file not created.");
+            return;
         }
+
+        const stats = fs.statSync(cachePath);
+        core.info(`📊 Archive size: ${formatBytes(stats.size)}`);
+
+        // 6. Clear volume contents to free disk space before cache save
+        // This is critical because @actions/cache needs space to create the compressed cache.tzst
+        const step6Start = Date.now();
+        core.info("🧹 Clearing engine volume contents to free disk space…");
+        try {
+            await engine.clearEngineVolume(DAGGER_ENGINE_VOLUME);
+            core.info("✓ Volume contents cleared");
+        } catch (clearError) {
+            core.warning(`Failed to clear volume contents: ${clearError}`);
+            core.info("Continuing with cache save anyway…");
+        }
+        const availableSpaceAfterClear = await getAvailableDiskSpace(path.dirname(cachePath));
+        core.info(
+            `💾 Free disk space after clearing volume: ${formatBytes(availableSpaceAfterClear)}`
+        );
+        const step6Duration = Date.now() - step6Start;
+        core.info(`⏱️ Step 'clear volume contents' completed in ${step6Duration}ms`);
+
+        // 7. Save to GHA cache
+        const step7Start = Date.now();
+        const key = getCacheKey(cacheKeyInput);
+        core.info(`Uploading to cache with key: ${key}`);
+        await cache.saveCache([cachePath], key);
+        core.info("✓ Cache saved");
+        const step7Duration = Date.now() - step7Start;
+        core.info(`⏱️ Step 'upload cache' completed in ${step7Duration}ms`);
+
+        // 8. Log disk space after save
+        const availableSpaceAfter = await getAvailableDiskSpace(path.dirname(cachePath));
+        core.info(`💾 Free disk space after save: ${formatBytes(availableSpaceAfter)}`);
+
+        // 9. Delete the volume completely (now that cache is saved)
+        const step9Start = Date.now();
+        core.info("🧹 Deleting engine volume…");
+        await engine.deleteEngineVolume(DAGGER_ENGINE_VOLUME);
+        core.info("✓ Volume deleted");
+        const step9Duration = Date.now() - step9Start;
+        core.info(`⏱️ Step 'delete volume' completed in ${step9Duration}ms`);
     } catch (error) {
         if (error instanceof Error && error.message.includes("timed out")) {
             core.warning(`⚠️ ${error.message} - skipping to avoid blocking workflow`);
@@ -254,8 +288,9 @@ export async function saveDaggerCache(
         }
         core.warning(`Failed to save cache: ${error}`);
     } finally {
-        const duration = Date.now() - startTime;
-        core.debug(`lifecycle:cache:save:end duration=${duration}ms`);
+        const totalDuration = Date.now() - totalStartTime;
+        core.info(`⏱️ Total cache save operation completed in ${totalDuration}ms`);
+        core.debug(`lifecycle:cache:save:end duration=${totalDuration}ms`);
 
         // Always clean up the archive file to prevent disk space accumulation
         if (cachePath && fs.existsSync(cachePath)) {

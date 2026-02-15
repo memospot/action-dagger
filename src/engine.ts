@@ -267,6 +267,42 @@ export async function getVolumeSize(volumeName: string): Promise<number> {
 }
 
 /**
+ * Clear (empty) the engine volume contents without deleting the volume itself
+ * This is faster than deleting and recreating the volume, and frees disk space
+ */
+export async function clearEngineVolume(volumeName: string): Promise<void> {
+    try {
+        // Check if volume exists
+        try {
+            await exec.exec("docker", ["volume", "inspect", volumeName], { silent: true });
+        } catch {
+            core.debug(`Volume ${volumeName} does not exist, nothing to clear`);
+            return;
+        }
+
+        // Clear volume contents using busybox rm -rf
+        // This preserves the volume but removes all data inside it
+        await exec.exec(
+            "docker",
+            [
+                "run",
+                "--rm",
+                "-v",
+                `${volumeName}:/data`,
+                "busybox",
+                "sh",
+                "-c",
+                "rm -rf /data/* /data/.*[!.] 2>/dev/null || true",
+            ],
+            { silent: true }
+        );
+    } catch (error) {
+        core.warning(`Failed to clear engine volume contents: ${error}`);
+        throw error;
+    }
+}
+
+/**
  * Delete the engine volume
  */
 export async function deleteEngineVolume(volumeName: string): Promise<void> {
