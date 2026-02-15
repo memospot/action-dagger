@@ -40,7 +40,7 @@ mock.module("../src/timeout.js", () => ({
 }));
 
 // Import AFTER all mocks are registered
-import { post, run } from "../src/main.js";
+import { postAction, runAction } from "../src/main.js";
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -70,13 +70,13 @@ describe("main", () => {
     });
 
     // -----------------------------------------------------------------------
-    // run()
+    // runAction()
     // -----------------------------------------------------------------------
-    describe("run", () => {
+    describe("runAction", () => {
         it("should set outputs and add binary to PATH on success", async () => {
             process.env.INPUT_VERSION = "v0.15.0";
 
-            await run();
+            await runAction();
 
             const outputNames = mockCore._trackers.setOutput.calls.map(
                 (c) => c.args[0] as string
@@ -93,7 +93,7 @@ describe("main", () => {
             process.env.INPUT_VERSION = "v0.15.0";
             process.env.INPUT_CACHE_BUILDS = "true";
 
-            await run();
+            await runAction();
 
             // Should export cache env vars
             const exportCalls = mockCore._trackers.exportVariable.calls.map((c) => c.args[0]);
@@ -112,7 +112,7 @@ describe("main", () => {
             process.env.INPUT_VERSION = "v0.15.0";
             process.env.INPUT_CACHE_BUILDS = "false";
 
-            await run();
+            await runAction();
 
             // Should NOT export cache env vars or runner host
             const exportCalls = mockCore._trackers.exportVariable.calls.map((c) => c.args[0]);
@@ -127,7 +127,7 @@ describe("main", () => {
 
             process.env.INPUT_VERSION = "v0.15.0";
 
-            await run();
+            await runAction();
 
             expect(mockCore._trackers.setFailed.calls).toHaveLength(1);
             const msg = mockCore._trackers.setFailed.calls[0].args[0] as string;
@@ -136,9 +136,9 @@ describe("main", () => {
     });
 
     // -----------------------------------------------------------------------
-    // post()
+    // postAction()
     // -----------------------------------------------------------------------
-    describe("post", () => {
+    describe("postAction", () => {
         it("should call saveCache when cache-builds is enabled", async () => {
             process.env.INPUT_VERSION = "v0.15.0";
             process.env.INPUT_CACHE_BUILDS = "true";
@@ -149,7 +149,7 @@ describe("main", () => {
                 Promise.resolve("mock-container-id")
             );
 
-            await post();
+            await postAction();
 
             // Verify the engine functions were called
             expect(mockEngine.findEngineContainer).toHaveBeenCalled();
@@ -163,7 +163,7 @@ describe("main", () => {
         it("should skip save when cache-builds is disabled", async () => {
             process.env.INPUT_CACHE_BUILDS = "false";
 
-            await post();
+            await postAction();
 
             expect(mockCache._trackers.saveCache.calls).toHaveLength(0);
         });
