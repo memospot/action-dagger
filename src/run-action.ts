@@ -1,10 +1,22 @@
 import * as core from "@actions/core";
 import { setupDaggerCache } from "./cache";
 import { getBinary } from "./dagger";
+import { getAvailableDiskSpace } from "./disk-space";
 import { executeDaggerCommand, writeSummary } from "./exec";
 import { parseInputs } from "./parse-inputs";
 import { setOutputs } from "./set-outputs";
 import type { ActionOutputs } from "./types";
+
+/**
+ * Format bytes to human readable string
+ */
+function formatBytes(bytes: number): string {
+    if (bytes === 0) return "0 B";
+    const k = 1024;
+    const sizes = ["B", "KB", "MB", "GB", "TB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return `${(bytes / k ** i).toFixed(2)} ${sizes[i]}`;
+}
 
 /**
  * Main entry point for the GitHub Action
@@ -12,6 +24,11 @@ import type { ActionOutputs } from "./types";
 export async function runAction(): Promise<void> {
     try {
         core.info("🗡 Starting Dagger Action");
+
+        // Log initial disk space
+        const tempDir = process.env.RUNNER_TEMP || "/tmp";
+        const initialDiskSpace = await getAvailableDiskSpace(tempDir);
+        core.info(`💾 Initial free disk space: ${formatBytes(initialDiskSpace)}`);
 
         // Parse inputs
         const inputs = parseInputs();

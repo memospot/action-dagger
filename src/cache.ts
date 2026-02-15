@@ -12,6 +12,17 @@ const CACHE_ARCHIVE_NAME_TAR = "dagger-engine-state.tar";
 const DEFAULT_CACHE_PREFIX = "dagger-v1";
 
 /**
+ * Format bytes to human readable string
+ */
+function formatBytes(bytes: number): string {
+    if (bytes === 0) return "0 B";
+    const k = 1024;
+    const sizes = ["B", "KB", "MB", "GB", "TB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return `${(bytes / k ** i).toFixed(2)} ${sizes[i]}`;
+}
+
+/**
  * Get the path where we store the cache archive
  * @param compressionLevel - Compression level (0 = plain tar, 1-19 = zstd)
  * @returns Full path to the archive file with appropriate extension
@@ -170,15 +181,22 @@ export async function saveDaggerCache(
         // 3. Determine archive path based on compression level
         cachePath = getCacheArchivePath(compressionLevel);
 
-        // 4. Check disk space
+        // 4. Log disk space before save and get volume size
+        const availableSpaceBefore = await getAvailableDiskSpace(path.dirname(cachePath));
+        core.info(`💾 Free disk space before save: ${formatBytes(availableSpaceBefore)}`);
+
+        // Get volume size before backup
+        const volumeSize = await engine.getVolumeSize(DAGGER_ENGINE_VOLUME);
+        core.info(`📦 Engine volume size: ${formatBytes(volumeSize)}`);
+
+        // Check disk space
         // We require at least 3GB of free space to perform the backup safely.
         // This is a conservative estimate to handle the compressed volume and avoid failing the workflow.
-        const availableSpace = await getAvailableDiskSpace(path.dirname(cachePath));
         const MIN_REQUIRED_SPACE = 3 * 1024 * 1024 * 1024; // 3GB
 
-        if (availableSpace > 0 && availableSpace < MIN_REQUIRED_SPACE) {
+        if (availableSpaceBefore > 0 && availableSpaceBefore < MIN_REQUIRED_SPACE) {
             core.warning(
-                `Low disk space detected (${(availableSpace / 1024 / 1024).toFixed(0)}MB). Skipping cache backup to prevent failure.`
+                `Low disk space detected (${formatBytes(availableSpaceBefore)}). Skipping cache backup to prevent failure.`
             );
             core.info("✅ Continuing without cache save (Soft Fail)");
             return;
@@ -209,7 +227,7 @@ export async function saveDaggerCache(
         // 6. Save to GHA cache
         if (fs.existsSync(cachePath)) {
             const stats = fs.statSync(cachePath);
-            core.info(`📊 Archive size: ${(stats.size / 1024 / 1024).toFixed(2)} MB`);
+            core.info(`📊 Archive size: ${formatBytes(stats.size)}`);
 
             // Use the primary unique key for saving
             const key = getCacheKey(cacheKeyInput);
@@ -217,7 +235,11 @@ export async function saveDaggerCache(
             await cache.saveCache([cachePath], key);
             core.info("✓ Cache saved");
 
-            // 7. Prune volume to free space
+            // 7. Log disk space after save
+            const availableSpaceAfter = await getAvailableDiskSpace(path.dirname(cachePath));
+            core.info(`💾 Free disk space after save: ${formatBytes(availableSpaceAfter)}`);
+
+            // 8. Prune volume to free space
             core.info("🧹 Pruning engine volume…");
             await engine.deleteEngineVolume(DAGGER_ENGINE_VOLUME);
             core.info("✓ Volume pruned");

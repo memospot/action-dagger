@@ -228,6 +228,34 @@ export async function restoreEngineVolume(
 }
 
 /**
+ * Get the size of a Docker volume in bytes
+ * Returns 0 if the volume doesn't exist or size cannot be determined
+ */
+export async function getVolumeSize(volumeName: string): Promise<number> {
+    try {
+        // Check if volume exists first
+        await exec.exec("docker", ["volume", "inspect", volumeName], { silent: true });
+
+        // Use du to get the size of the volume data
+        // Docker volumes are stored in /var/lib/docker/volumes/{name}/_data
+        const { stdout } = await exec.getExecOutput(
+            "docker",
+            ["run", "--rm", "-v", `${volumeName}:/data:ro`, "alpine", "du", "-sb", "/data"],
+            { silent: true }
+        );
+
+        const match = stdout.trim().match(/^(\d+)\s+/);
+        if (match) {
+            return parseInt(match[1], 10);
+        }
+        return 0;
+    } catch (error) {
+        core.debug(`Failed to get volume size: ${error}`);
+        return 0;
+    }
+}
+
+/**
  * Delete the engine volume
  */
 export async function deleteEngineVolume(volumeName: string): Promise<void> {
