@@ -109,7 +109,7 @@ describe("Engine Lifecycle", () => {
             const shellCmd = args[1];
             expect(shellCmd).toContain("set -o pipefail");
             expect(shellCmd).toContain("docker run");
-            expect(shellCmd).toContain("alpine tar");
+            expect(shellCmd).toContain("busybox tar");
             expect(shellCmd).toContain("> /tmp/archive.tar");
             // Should NOT contain zstd
             expect(shellCmd).not.toContain("zstd");
@@ -146,7 +146,7 @@ describe("Engine Lifecycle", () => {
             const shellCmd = args[1];
             expect(shellCmd).toContain("set -o pipefail");
             expect(shellCmd).toContain("docker run");
-            expect(shellCmd).toContain("alpine tar");
+            expect(shellCmd).toContain("busybox tar");
             expect(shellCmd).toContain("| zstd -T0 -3");
             expect(shellCmd).toContain("-o /tmp/archive.tar.zst");
 

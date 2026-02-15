@@ -1,4 +1,5 @@
 import * as core from "@actions/core";
+import * as exec from "@actions/exec";
 import { setupDaggerCache } from "./cache";
 import { getBinary } from "./dagger";
 import { getAvailableDiskSpace } from "./disk-space";
@@ -6,6 +7,18 @@ import { executeDaggerCommand, writeSummary } from "./exec";
 import { parseInputs } from "./parse-inputs";
 import { setOutputs } from "./set-outputs";
 import type { ActionOutputs } from "./types";
+
+/**
+ * Pull busybox image in background for cache backup operations.
+ * Non-blocking - starts the pull and returns immediately.
+ */
+function pullAlpineInBackground(): void {
+    core.debug("Starting busybox image pull in background for cache operations...");
+    // Fire and forget - don't await, don't block
+    exec.exec("docker", ["pull", "busybox:latest"], { silent: true }).catch((error) => {
+        core.debug(`Background busybox pull failed (non-critical): ${error}`);
+    });
+}
 
 /**
  * Format bytes to human readable string
@@ -40,6 +53,9 @@ export async function runAction(): Promise<void> {
 
         // Setup Dagger build cache if enabled
         if (inputs.cacheBuilds) {
+            // Pre-pull busybox image in background for faster cache backup later
+            pullAlpineInBackground();
+
             // Pass the resolved version, cache key, and compression level to setup cache
             await setupDaggerCache(
                 binaryInfo.version,

@@ -113,9 +113,9 @@ export async function backupEngineVolume(
                 `Backing up volume to plain tar archive (compression level 0 - fastest mode)`
             );
 
-            const cmd = `set -o pipefail && docker run --rm -v ${volumeName}:/data alpine tar -C /data -cf - . > ${archivePath}`;
+            const cmd = `set -o pipefail && docker run --rm -v ${volumeName}:/data busybox tar -C /data -cf - . > ${archivePath}`;
             core.info(
-                `Running backup command: docker run --rm -v ${volumeName}:/data alpine tar -C /data -cf - . > ${archivePath}`
+                `Running backup command: docker run --rm -v ${volumeName}:/data busybox tar -C /data -cf - . > ${archivePath}`
             );
 
             let stderr = "";
@@ -154,9 +154,9 @@ export async function backupEngineVolume(
                 return;
             }
 
-            const cmd = `set -o pipefail && docker run --rm -v ${volumeName}:/data alpine tar -C /data -cf - . | zstd -T0 -${compressionLevel} -o ${archivePath}`;
+            const cmd = `set -o pipefail && docker run --rm -v ${volumeName}:/data busybox tar -C /data -cf - . | zstd -T0 -${compressionLevel} -o ${archivePath}`;
             core.info(
-                `Running backup command: docker run --rm -v ${volumeName}:/data alpine tar -C /data -cf - . | zstd -T0 -${compressionLevel} -o ${archivePath}`
+                `Running backup command: docker run --rm -v ${volumeName}:/data busybox tar -C /data -cf - . | zstd -T0 -${compressionLevel} -o ${archivePath}`
             );
 
             let stderr = "";
@@ -217,12 +217,12 @@ export async function restoreEngineVolume(
     if (isZstdCompressed) {
         // zstd compressed archive
         core.info(`Restoring from zstd compressed archive: ${archivePath}`);
-        const cmd = `zstd -d -c ${archivePath} | docker run --rm -i -v ${volumeName}:/data alpine tar -C /data -xf -`;
+        const cmd = `zstd -d -c ${archivePath} | docker run --rm -i -v ${volumeName}:/data busybox tar -C /data -xf -`;
         await exec.exec("sh", ["-c", cmd], { silent: true });
     } else {
         // Plain tar archive
         core.info(`Restoring from plain tar archive: ${archivePath}`);
-        const cmd = `docker run --rm -i -v ${volumeName}:/data -v ${archivePath}:/archive.tar alpine tar -C /data -xf /archive.tar`;
+        const cmd = `docker run --rm -i -v ${volumeName}:/data -v ${archivePath}:/archive.tar busybox tar -C /data -xf /archive.tar`;
         await exec.exec("sh", ["-c", cmd], { silent: true });
     }
 }
@@ -240,7 +240,7 @@ export async function getVolumeSize(volumeName: string): Promise<number> {
         // Docker volumes are stored in /var/lib/docker/volumes/{name}/_data
         const { stdout } = await exec.getExecOutput(
             "docker",
-            ["run", "--rm", "-v", `${volumeName}:/data:ro`, "alpine", "du", "-sb", "/data"],
+            ["run", "--rm", "-v", `${volumeName}:/data:ro`, "busybox", "du", "-sb", "/data"],
             { silent: true }
         );
 
