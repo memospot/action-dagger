@@ -1,4 +1,5 @@
 import * as fs from "node:fs";
+import * as path from "node:path";
 import * as core from "@actions/core";
 import * as exec from "@actions/exec";
 
@@ -113,20 +114,31 @@ export async function backupEngineVolume(
                 `Backing up volume to plain tar archive (compression level 0 - fastest mode)`
             );
 
-            const cmd = `set -o pipefail && docker run --rm -v ${volumeName}:/data busybox tar -C /data -cf - . > ${archivePath}`;
-            core.info(
-                `Running backup command: docker run --rm -v ${volumeName}:/data busybox tar -C /data -cf - . > ${archivePath}`
-            );
+            const archiveDir = path.dirname(archivePath);
+            const archiveName = path.basename(archivePath);
 
-            let stderr = "";
+            // Write directly to file by mounting the output directory
+            // Avoids pipe issues with large archives
+            const args = [
+                "run",
+                "--rm",
+                "-v",
+                `${volumeName}:/data:ro`,
+                "-v",
+                `${archiveDir}:/out`,
+                "busybox",
+                "tar",
+                "-C",
+                "/data",
+                "-cf",
+                `/out/${archiveName}`,
+                ".",
+            ];
+            core.info(`Running backup command: docker ${args.join(" ")}`);
+
             try {
-                await exec.exec("bash", ["-c", cmd], {
+                await exec.exec("docker", args, {
                     silent: !isVerbose,
-                    listeners: {
-                        stderr: (data: Buffer) => {
-                            stderr += data.toString();
-                        },
-                    },
                 });
             } catch (error) {
                 // Check if this was due to cancellation
@@ -134,8 +146,7 @@ export async function backupEngineVolume(
                     core.info("Backup interrupted by cancellation signal");
                     return;
                 }
-                const errorMsg = stderr ? `Error output: ${stderr}` : "";
-                throw new Error(`Backup command failed: ${error}. ${errorMsg}`);
+                throw new Error(`Backup command failed: ${error}`);
             }
         } else {
             // Compressed mode: tar + zstd with specified level

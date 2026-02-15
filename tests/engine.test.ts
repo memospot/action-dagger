@@ -98,21 +98,23 @@ describe("Engine Lifecycle", () => {
             const whichCalls = calls.filter((c) => c.args[0] === "which");
             expect(whichCalls.length).toBe(0);
 
-            // Second call should be the backup command (bash)
+            // Second call should be docker run directly (no bash pipe)
             const command = calls[1].args[0] as string;
             const args = calls[1].args[1] as string[];
             const options = calls[1].args[2] as { silent?: boolean };
 
-            expect(command).toBe("bash");
-            expect(args[0]).toBe("-c");
-
-            const shellCmd = args[1];
-            expect(shellCmd).toContain("set -o pipefail");
-            expect(shellCmd).toContain("docker run");
-            expect(shellCmd).toContain("busybox tar");
-            expect(shellCmd).toContain("> /tmp/archive.tar");
+            expect(command).toBe("docker");
+            expect(args).toContain("run");
+            expect(args).toContain("--rm");
+            expect(args).toContain("busybox");
+            expect(args).toContain("tar");
+            expect(args).toContain("-C");
+            expect(args).toContain("/data");
+            expect(args).toContain("-cf");
+            // Should output to mounted file, not stdout pipe
+            expect(args).toContain("/out/archive.tar");
             // Should NOT contain zstd
-            expect(shellCmd).not.toContain("zstd");
+            expect(args).not.toContain("zstd");
 
             // Should be silent by default (!verbose)
             expect(options?.silent).toBe(true);
