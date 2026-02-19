@@ -142,27 +142,26 @@ jobs:
             exit 1
           }
 
-      - name: Write summary to GITHUB_STEP_SUMMARY
+      - name: Write summary with GitHub summary enabled
         uses: ./
-        env:
-          GITHUB_STEP_SUMMARY: /tmp/github-step-summary.md
         with:
           version: latest
           verb: core
           args: version
           enable-github-summary: true
-      - name: Check GitHub summary content
+          summary-path: /tmp/github-summary-enabled.md
+      - name: Check summary content with GitHub summary enabled
         run: |
-          if [[ ! -s /tmp/github-step-summary.md ]]; then
-            echo "GITHUB_STEP_SUMMARY is missing or empty"
+          if [[ ! -s /tmp/github-summary-enabled.md ]]; then
+            echo "Summary file is missing or empty when enable-github-summary=true"
             exit 1
           fi
 
-          grep -q "## Command" /tmp/github-step-summary.md || {
-            echo "Missing command section in GITHUB_STEP_SUMMARY"
+          grep -q "## Command" /tmp/github-summary-enabled.md || {
+            echo "Missing command section"
             exit 1
           }
-          grep -q "## Dagger trace" /tmp/github-step-summary.md || {
-            echo "Missing trace section in GITHUB_STEP_SUMMARY"
+          grep -q "## Dagger trace" /tmp/github-summary-enabled.md || {
+            echo "Missing trace section"
             exit 1
           }

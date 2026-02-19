@@ -96,3 +96,19 @@ publish v:
     echo "  - Create a GitHub release"
     echo ""
     echo "Monitor progress at: https://github.com/$(git remote get-url origin | sed 's/.*github.com[:/]//' | sed 's/\.git$//')/actions"
+
+gh-purge-workflow-runs:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    repo=$(gh repo view --json nameWithOwner -q .nameWithOwner)
+    run_count=$(gh api "repos/$repo/actions/runs" --paginate --jq '.workflow_runs[].id' | wc -l)
+    echo "Repo: $repo"
+    echo "Workflow runs found: $run_count"
+    gh api "repos/$repo/actions/runs" --paginate --jq '.workflow_runs[].id' | while read -r id; do gh api -X DELETE "repos/$repo/actions/runs/$id" >/dev/null
+    echo "deleted $id"; done && remaining=$(gh api "repos/$repo/actions/runs" --paginate --jq '.workflow_runs[].id' | wc -l)
+    echo "Remaining runs: $remaining"
+    echo "Done!"
+
+gh-purge-cache:
+    gh cache delete -a
