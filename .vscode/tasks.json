@@ -1,0 +1,125 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Build",
+      "type": "shell",
+      "command": "bun run build",
+      "detail": "Build the action for production (outputs to dist/index.js)",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      },
+      "problemMatcher": ["$tsc"]
+    },
+    {
+      "label": "Test",
+      "type": "shell",
+      "command": "bun test",
+      "detail": "Run all tests",
+      "group": {
+        "kind": "test",
+        "isDefault": true
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Test with Coverage",
+      "type": "shell",
+      "command": "bun run test:coverage",
+      "detail": "Run tests with coverage report",
+      "group": {
+        "kind": "test",
+        "isDefault": false
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Lint",
+      "type": "shell",
+      "command": "bun run lint",
+      "detail": "Check for linting issues using Biome",
+      "group": {
+        "kind": "build",
+        "isDefault": false
+      },
+      "presentation": {
+        "reveal": "silent",
+        "panel": "dedicated"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Lint (fix)",
+      "type": "shell",
+      "command": "bun run lint:fix",
+      "detail": "Fix linting issues using Biome",
+      "group": {
+        "kind": "build",
+        "isDefault": false
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Format",
+      "type": "shell",
+      "command": "bun run fmt",
+      "detail": "Format code using Biome",
+      "group": {
+        "kind": "build",
+        "isDefault": false
+      },
+      "presentation": {
+        "reveal": "silent",
+        "panel": "dedicated"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Format (check)",
+      "type": "shell",
+      "command": "bun run fmt:check",
+      "detail": "Check code formatting using Biome",
+      "group": {
+        "kind": "build",
+        "isDefault": false
+      },
+      "presentation": {
+        "reveal": "silent",
+        "panel": "dedicated"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Validate All",
+      "type": "shell",
+      "command": "bun run lint && bun run fmt:check && bun test && bun run build",
+      "detail": "Run full validation suite (lint, fmt check, test, build)",
+      "group": {
+        "kind": "build",
+        "isDefault": false
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      },
+      "problemMatcher": ["$tsc"]
+    }
+  ]
+}

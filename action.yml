@@ -1,0 +1,121 @@
+name: "Dagger Build"
+description: "Run dagger commands in GitHub Actions with intelligent caching"
+author: "Lincoln Nogueira"
+branding:
+  icon: "layers"
+  color: "orange"
+
+inputs:
+  version:
+    description: "Dagger Version. Use semver vX.Y.Z or latest"
+    required: false
+    default: "latest"
+
+  cache-binary:
+    description: "Cache Dagger binary to avoid re-downloading"
+    required: false
+    default: "true"
+
+  cache-builds:
+    description: "Enable Dagger build cache persistence"
+    required: false
+    default: "true"
+
+  cache-mode:
+    description: |
+      Cache manipulation mode:
+      - 'auto': Try 'direct' first, fallback to 'container' if it fails (default).
+      - 'direct': Faster. May encounter permission issues on some runners.
+      - 'container': Slower and higher disk usage, but more reliable.
+    required: false
+    default: "auto"
+
+  cache-key:
+    description: |
+      Custom cache key. If strictly following the 'rolling cache' pattern, this should include a
+      unique component (like run_id) as the last segment. If not provided, a default rolling key is used.
+    required: false
+    default: ""
+
+  cache-timeout:
+    description: "Timeout in minutes for cache save/restore operations. Set to 0 to disable timeout."
+    required: false
+    default: "10"
+
+  commit:
+    description: "Dagger Dev Commit (deprecated)"
+    required: false
+    default: ""
+    deprecationMessage: "Use specific version instead"
+
+  dagger-flags:
+    description: "Dagger CLI Flags"
+    required: false
+    default: "--progress plain"
+
+  verb:
+    description: "CLI verb (call, run, download, up, functions, shell, query)"
+    required: false
+    default: "call"
+
+  workdir:
+    description: "The working directory in which to run the Dagger CLI"
+    required: false
+    default: "."
+
+  cloud-token:
+    description: "Dagger Cloud Token"
+    required: false
+    default: ""
+
+  module:
+    description: "Dagger module to call. Local or Git"
+    required: false
+    default: ""
+
+  args:
+    description: "Arguments to pass to CLI"
+    required: false
+    default: ""
+
+  call:
+    description: "Function and arguments for dagger call"
+    required: false
+    default: ""
+
+  shell:
+    description: "Function and arguments for dagger shell"
+    required: false
+    default: ""
+
+  summary-path:
+    description: "File path to write the job summary"
+    required: false
+    default: ""
+
+  enable-github-summary:
+    description: "Whether to write summary to GITHUB_STEP_SUMMARY"
+    required: false
+    default: "false"
+
+outputs:
+  dagger-version:
+    description: "The installed Dagger version"
+
+  cache-hit:
+    description: "Whether the Dagger binary was restored from cache"
+
+  binary-path:
+    description: "Path to the installed Dagger binary"
+
+  output:
+    description: "Job output"
+
+  trace-url:
+    description: "Dagger Cloud trace URL"
+
+runs:
+  using: "node24"
+  main: "dist/index.js"
+  post: "dist/index.js"
+  post-if: "always()"

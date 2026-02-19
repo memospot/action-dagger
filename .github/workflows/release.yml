@@ -1,0 +1,79 @@
+name: Release (Tag)
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+concurrency:
+  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.ref }}
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Bun cache
+        uses: actions/cache@v5
+        with:
+          key: bun-${{ hashFiles('**/bun.lock') }}
+          restore-keys: bun
+          path: ~/.bun/install
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Run tests
+        run: bun test
+
+      - name: Build
+        run: bun run build
+
+      - name: Commit dist/index.js
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add -f dist/index.js
+          git diff --staged --quiet || git commit -m "chore: update dist for release ${{ github.ref_name }}"
+
+          # Re-tag to include the dist commit, then force-push.
+          # GITHUB_TOKEN pushes don't retrigger workflows, so this is safe.
+          TAG="${{ github.ref_name }}"
+          git tag -fa "${TAG}" -m "Release ${TAG}"
+          git push origin "refs/tags/${TAG}" --force
+
+      - name: Update major version tag
+        run: |
+          VERSION=${{ github.ref_name }}
+          MAJOR=${VERSION%%.*}
+          git tag -fa "${MAJOR}" -m "Update ${MAJOR} tag"
+          git push origin "${MAJOR}" --force
+
+      - name: Update minor version tag
+        run: |
+          VERSION=${{ github.ref_name }}
+          MINOR=${VERSION%.*}
+          if [ "$MINOR" != "$VERSION" ]; then
+            git tag -fa "${MINOR}" -m "Update ${MINOR} tag"
+            git push origin "${MINOR}" --force
+          fi
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          name: ${{ github.ref_name }}
+          draft: false
+          prerelease: false

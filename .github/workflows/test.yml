@@ -1,0 +1,168 @@
+name: Test
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+  # Enable manual trigger for easy debugging
+  workflow_dispatch:
+
+concurrency:
+  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.ref }}
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Bun cache
+        uses: actions/cache@v5
+        with:
+          key: bun-${{ hashFiles('**/bun.lock') }}
+          restore-keys: bun
+          path: ~/.bun/install
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build
+        run: bun run build
+
+      - name: Upload dist
+        uses: actions/upload-artifact@v6
+        with:
+          name: dist
+          path: dist/
+
+  integration:
+    needs: build
+    runs-on: ubuntu-latest
+    env:
+      DAGGER_CLOUD_TOKEN: ${{ secrets.DAGGER_CLOUD_TOKEN }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          name: dist
+          path: dist/
+
+      - name: Execute action and validate output
+        id: use-output
+        uses: ./
+        with:
+          version: latest
+          verb: core
+          args: container from --address=alpine with-exec --args echo,-n,"hello world" stdout
+      - name: Check output value
+        run: |
+          target='${{ steps.use-output.outputs.output }}'
+          if [[ "$target" != "hello world" ]]; then
+            echo "Expected 'hello world', got: $target"
+            exit 1
+          fi
+          echo "output matches"
+
+      - name: Trace URL with cloud token
+        if: ${{ env.DAGGER_CLOUD_TOKEN != '' }}
+        id: trace-url-token
+        uses: ./
+        with:
+          version: latest
+          verb: core
+          args: version
+          cloud-token: ${{ env.DAGGER_CLOUD_TOKEN }}
+      - name: Check trace URL with token
+        if: ${{ env.DAGGER_CLOUD_TOKEN != '' }}
+        run: |
+          url='${{ steps.trace-url-token.outputs.trace-url }}'
+          if [[ "$url" != https://dagger.cloud/* ]]; then
+            echo "Expected dagger.cloud trace URL, got: $url"
+            exit 1
+          fi
+          echo "trace-url found: $url"
+
+      - name: Trace URL without cloud token
+        id: trace-url-no-token
+        uses: ./
+        env:
+          DAGGER_CLOUD_TOKEN: ""
+        with:
+          version: latest
+          verb: core
+          args: version
+      - name: Check trace URL without token
+        run: |
+          url='${{ steps.trace-url-no-token.outputs.trace-url }}'
+          if [[ "$url" != "https://dagger.cloud/traces/setup" ]]; then
+            echo "Expected setup trace URL, got: $url"
+            exit 1
+          fi
+          echo "trace-url fallback matches"
+
+      - name: Write summary to custom path
+        uses: ./
+        with:
+          version: latest
+          verb: core
+          args: version
+          summary-path: /tmp/custom-summary.md
+      - name: Check custom summary content
+        run: |
+          if [[ ! -s /tmp/custom-summary.md ]]; then
+            echo "Custom summary file missing or empty"
+            exit 1
+          fi
+
+          grep -q "## Command" /tmp/custom-summary.md || {
+            echo "Missing command section"
+            exit 1
+          }
+          grep -q "## Dagger trace" /tmp/custom-summary.md || {
+            echo "Missing trace section"
+            exit 1
+          }
+          grep -q "## Dagger version" /tmp/custom-summary.md || {
+            echo "Missing version section"
+            exit 1
+          }
+
+      - name: Write summary to GITHUB_STEP_SUMMARY
+        uses: ./
+        env:
+          GITHUB_STEP_SUMMARY: /tmp/github-step-summary.md
+        with:
+          version: latest
+          verb: core
+          args: version
+          enable-github-summary: true
+      - name: Check GitHub summary content
+        run: |
+          if [[ ! -s /tmp/github-step-summary.md ]]; then
+            echo "GITHUB_STEP_SUMMARY is missing or empty"
+            exit 1
+          fi
+
+          grep -q "## Command" /tmp/github-step-summary.md || {
+            echo "Missing command section in GITHUB_STEP_SUMMARY"
+            exit 1
+          }
+          grep -q "## Dagger trace" /tmp/github-step-summary.md || {
+            echo "Missing trace section in GITHUB_STEP_SUMMARY"
+            exit 1
+          }

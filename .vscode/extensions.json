@@ -1,0 +1,10 @@
+{
+  "recommendations": [
+    "biomejs.biome",
+    "DavidAnson.vscode-markdownlint",
+    "EditorConfig.EditorConfig",
+    "oven.bun-vscode",
+    "redhat.vscode-yaml"
+  ],
+  "unwantedRecommendations": []
+}

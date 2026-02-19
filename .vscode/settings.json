@@ -1,0 +1,48 @@
+{
+  "[github-actions-workflow]": {
+    "editor.defaultFormatter": "redhat.vscode-yaml"
+  },
+  "[yaml]": {
+    "editor.defaultFormatter": "redhat.vscode-yaml"
+  },
+  "[json]": {
+    "editor.defaultFormatter": "biomejs.biome"
+  },
+  "[jsonc]": {
+    "editor.defaultFormatter": "biomejs.biome"
+  },
+  "[typescript]": {
+    "editor.defaultFormatter": "biomejs.biome"
+  },
+  "[markdown]": {
+    "editor.defaultFormatter": "DavidAnson.vscode-markdownlint",
+    "editor.quickSuggestions": {
+      "comments": "off",
+      "strings": "off",
+      "other": "off"
+    }
+  },
+  "editor.formatOnSave": true,
+  "markdownlint.config": {
+    "MD028": false,
+    "MD031": false,
+    "MD032": false,
+    "MD033": false,
+    "MD036": false,
+    "MD060": false
+  },
+  "files.exclude": {
+    "**/node_modules/**": true
+  },
+  "search.exclude": {
+    "**/dist/**": true,
+    "**/node_modules/**": true,
+    "*.lock": true
+  },
+  "prettier.enable": false,
+  "biome.enabled": true,
+  "biome.requireConfiguration": true,
+  "editor.codeActionsOnSave": {
+    "source.fixAll.biome": "explicit"
+  }
+}
