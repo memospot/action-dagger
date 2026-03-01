@@ -67,7 +67,7 @@ jobs:
       actions: write
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@v8
         with:
           name: dist
           path: dist/
@@ -113,7 +113,7 @@ jobs:
       cache-key: ${{ steps.generate.outputs.cache-key }}
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@v8
         with:
           name: dist
           path: dist/
@@ -141,7 +141,7 @@ jobs:
       actions: write
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@v8
         with:
           name: dist
           path: dist/
@@ -171,7 +171,7 @@ jobs:
       actions: write
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@v8
         with:
           name: dist
           path: dist/
@@ -197,7 +197,7 @@ jobs:
       actions: write
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@v8
         with:
           name: dist
           path: dist/
@@ -226,7 +226,7 @@ jobs:
       actions: write
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@v8
         with:
           name: dist
           path: dist/
@@ -255,7 +255,7 @@ jobs:
       actions: write
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@v8
         with:
           name: dist
           path: dist/
@@ -281,7 +281,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@v8
         with:
           name: dist
           path: dist/
