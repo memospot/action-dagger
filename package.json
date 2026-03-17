@@ -21,7 +21,7 @@
   "os": [
     "linux"
   ],
-  "license": "BSD-2-Clause-Patent",
+  "license": "BlueOak-1.0.0",
   "dependencies": {
     "@actions/cache": "6.0.0",
     "@actions/core": "3.0.0",

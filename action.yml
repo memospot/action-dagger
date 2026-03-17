@@ -96,7 +96,7 @@ inputs:
   enable-github-summary:
     description: "Whether to write summary to GITHUB_STEP_SUMMARY"
     required: false
-    default: "false"
+    default: "true"
 
 outputs:
   dagger-version:
