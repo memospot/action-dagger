@@ -44,6 +44,10 @@ fmt:
 # Full validation (lint, format check, test, build)
 validate: lint fmt-check test build
 
+# Concise version of validate
+@gate:
+    just validate >/dev/null 2>&1 && echo "[OK] All validations passed." || echo "[ERROR] Run 'just validate' for more details."
+
 # Publish a new release
 # Usage: just publish v1.2.3
 publish v:
