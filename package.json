@@ -23,18 +23,18 @@
   ],
   "license": "BlueOak-1.0.0",
   "dependencies": {
-    "@actions/cache": "6.0.0",
-    "@actions/core": "3.0.0",
+    "@actions/cache": "6.1.0",
+    "@actions/core": "3.0.1",
     "@actions/exec": "3.0.0",
     "@actions/tool-cache": "4.0.0"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.4.4",
+    "@biomejs/biome": "2.5.1",
     "@types/node": "24.10.13",
-    "typescript": "5.9.3",
-    "bun-types": "1.3.9"
+    "typescript": "6.0.3",
+    "bun-types": "1.3.14"
   },
-  "packageManager": "bun@1.3.10",
+  "packageManager": "bun@1.3.14",
   "engines": {
     "node": ">=24.0.0"
   }
