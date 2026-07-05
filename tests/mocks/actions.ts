@@ -92,6 +92,8 @@ export const mockCore = {
         coreTrackers.addPath.track(inputPath);
     },
 
+    isDebug: (): boolean => false,
+
     exportVariable: (name: string, val: string): void => {
         coreTrackers.exportVariable.track(name, val);
     },

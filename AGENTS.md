@@ -91,3 +91,10 @@ src/engine-config.ts — engine.toml GC policy generation
 src/output-summary.ts — job summary generation (custom path + GITHUB_STEP_SUMMARY)
 src/version.ts       — semver comparison utilities
 ```
+
+## Lessons
+
+- Shared `@actions/core` mocks must include every function used by source code
+  (e.g., `core.isDebug()`). Bun's `mock.module` state persists across test
+  files, and a mock missing a called function silently throws in downstream
+  code paths, causing order-dependent failures in CI.
