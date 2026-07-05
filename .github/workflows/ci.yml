@@ -11,6 +11,9 @@ concurrency:
   cancel-in-progress: true
   group: ${{ github.workflow }}-${{ github.ref }}
 
+permissions:
+  contents: read
+
 jobs:
   lint:
     name: Lint
