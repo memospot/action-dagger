@@ -48,6 +48,12 @@ jobs:
       - name: Build
         run: bun run build
 
+      - name: Configure git authentication
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config --local --add url."https://x-access-token:${GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"
+
       - name: Commit dist/index.js
         run: |
           git config --local user.email "action@github.com"
